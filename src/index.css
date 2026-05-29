@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Result table styles — IDENTICAL to original PdfToWordList.py ── */
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  line-height: 1.25;
+}
+.result-table th {
+  border: 1px solid #dddddd;
+  padding: 10px;
+  font-weight: bold;
+  background-color: #f2f2f2;
+  text-align: left;
+}
+.result-table td {
+  border: 1px solid #dddddd;
+  padding: 10px;
+}
+.result-table .blank {
+  color: #ccc;
+}
+.result-table tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
