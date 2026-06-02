@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, type DragEvent } from 'react';
 import { pdfToImages } from './services/pdfService';
 import { extractWords, type WordPair } from './services/geminiService';
 import { generateHtml } from './utils/htmlGenerator';
+import { segmentFurigana } from './utils/furigana';
 
 type Step = 'input' | 'processing' | 'result';
 
@@ -257,9 +258,19 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {wordPairs.map(({ ja, cn }, i) => (
+              {wordPairs.map(({ ja, cn, reading }, i) => (
                 <tr key={i}>
-                  <td>{ja}</td>
+                  <td>
+                    {segmentFurigana(ja, reading).map((seg, si) =>
+                      seg.reading ? (
+                        <ruby key={si}>
+                          {seg.text}<rt>{seg.reading}</rt>
+                        </ruby>
+                      ) : (
+                        <span key={si}>{seg.text}</span>
+                      )
+                    )}
+                  </td>
                   <td>{cn}</td>
                   <td className="blank">__________________</td>
                 </tr>

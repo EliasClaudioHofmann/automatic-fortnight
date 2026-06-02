@@ -1,12 +1,15 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const PROMPT = `Extract all Japanese words and their Chinese translations from this table.
-Return the result strictly as a JSON list of objects: [{"ja": "...", "cn": "..."}].
+Also include the hiragana reading (furigana/振り仮名) for the Japanese word.
+Return the result strictly as a JSON list of objects: [{"ja": "...", "cn": "...", "reading": "..."}].
+The "reading" field should be the hiragana pronunciation of the Japanese word.
 Do not include any other text or explanation.`;
 
 export interface WordPair {
   ja: string;
   cn: string;
+  reading: string;
 }
 
 /**
@@ -40,6 +43,7 @@ export async function extractWords(
         allPairs.push({
           ja: item.ja || '',
           cn: item.cn || '',
+          reading: item.reading || '',
         });
       }
     } catch {

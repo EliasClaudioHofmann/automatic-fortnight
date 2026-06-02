@@ -26,3 +26,8 @@
 .result-table tr:nth-child(even) {
   background-color: #f9f9f9;
 }
+/* Furigana (振り仮名) — small reading above kanji */
+.result-table rt {
+  font-size: 0.65em;
+  color: #555;
+}

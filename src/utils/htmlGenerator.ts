@@ -1,15 +1,16 @@
 import type { WordPair } from '../services/geminiService';
+import { renderFuriganaHtml } from './furigana';
 
 /**
  * Generate the same HTML table as the original Python script.
- * Styles and structure are preserved exactly from PdfToWordList.py lines 107-145.
+ * Styles preserved from PdfToWordList.py lines 107-145; furigana added.
  */
 export function generateHtml(wordPairs: WordPair[]): string {
   const rows = wordPairs
     .map(
-      ({ ja, cn }) => `
+      ({ ja, cn, reading }) => `
                     <tr>
-                        <td>${escapeHtml(ja)}</td>
+                        <td>${renderFuriganaHtml(ja, reading)}</td>
                         <td>${escapeHtml(cn)}</td>
                         <td class="blank">__________________</td>
                     </tr>`
@@ -27,6 +28,7 @@ export function generateHtml(wordPairs: WordPair[]): string {
         td { border: 1px solid #dddddd; padding: 10px; }
         .blank { color: #ccc; }
         tr:nth-child(even) { background-color: #f9f9f9; }
+        rt { font-size: 0.65em; color: #555; }
     </style>
 </head>
 <body>
