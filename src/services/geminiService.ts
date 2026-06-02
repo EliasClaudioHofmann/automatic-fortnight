@@ -3,28 +3,44 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 type Language = 'japanese' | 'english';
 
 const PROMPTS = {
-  japanese: `Extract all Japanese words and their Chinese translations from this table or list.
-The table may have columns like: Japanese word | part of speech | Chinese meaning | reading, or similar variations.
-For each entry, extract:
-- The Japanese word/phrase (not the part of speech column)
-- The Chinese translation/meaning
-- The hiragana reading (furigana/振り仮名) - try to infer from context if not explicitly shown
-Return the result strictly as a JSON list: [{"ja": "...", "cn": "...", "reading": "..."}]
-Examples:
-- If table shows "日本語 | n. | にほんご" → {"ja": "日本語", "cn": "日语", "reading": "にほんご"}
-- If only Chinese meaning shows "中文" → use that as the Chinese translation
-Return ONLY valid JSON, no other text.`,
+  japanese: `You are extracting words from a Japanese-Chinese vocabulary table.
+
+CRITICAL: Your output MUST be valid JSON array with EXACTLY these field names:
+- "ja" → the JAPANESE word/phrase only
+- "cn" → the CHINESE translation only  
+- "reading" → the hiragana reading of the Japanese word
+
+The table may have multiple columns like: Japanese | POS | Chinese | reading, or similar.
+Extract ONLY the Japanese word and its Chinese translation. SKIP the POS (part-of-speech) column.
+
+Example table row: "日本語 | n. | にほんご | 日语"
+Correct output: {"ja": "日本語", "cn": "日语", "reading": "にほんご"}
+
+WRONG outputs (do NOT do this):
+- {"ja": "n.", "cn": "日本語"} ← wrong field values
+- {"cn": "日本語", "ja": "日语"} ← swapped values
+
+Return ONLY a JSON array. No markdown, no explanation. Example:
+[{"ja": "漢字", "cn": "汉字", "reading": "かんじ"}]`,
   
-  english: `Extract all English words/phrases and their Chinese translations from this table or list.
-The table may have multiple columns: English word | part of speech | Chinese meaning, or similar.
-For each row, extract:
-- The English word/phrase (NOT the part of speech/grammar notation)
-- The Chinese translation/meaning (NOT the part of speech)
-Return the result strictly as a JSON list: [{"en": "...", "cn": "..."}]
-Examples:
-- If row shows "check-up | n. | 检查,体检" → {"en": "check-up", "cn": "检查,体检"}
-- If shows "comprehensive | adj. | 全面的,综合的" → {"en": "comprehensive", "cn": "全面的,综合的"}
-Return ONLY valid JSON, no other text.`,
+  english: `You are extracting words from an English-Chinese vocabulary table.
+
+CRITICAL: Your output MUST be valid JSON array with EXACTLY these field names:
+- "en" → the ENGLISH word/phrase only
+- "cn" → the CHINESE translation only
+
+The table may have columns like: English | POS | Chinese, or similar.
+Extract ONLY the English word and its Chinese meaning. SKIP the POS (part-of-speech) column.
+
+Example table row: "check-up | n. | 检查,体检"
+Correct output: {"en": "check-up", "cn": "检查,体检"}
+
+WRONG outputs (do NOT do this):
+- {"en": "n.", "cn": "check-up"} ← wrong field values
+- {"cn": "check-up", "en": "检查,体检"} ← swapped values
+
+Return ONLY a JSON array. No markdown, no explanation. Example:
+[{"en": "comprehensive", "cn": "全面的,综合的"}]`,
 };
 
 export interface WordPairJapanese {
