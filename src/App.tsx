@@ -7,11 +7,13 @@ import pkg from '../package.json';
 
 const VERSION = pkg.version;
 type Step = 'input' | 'processing' | 'result';
+type Language = 'japanese' | 'english';
 
 export default function App() {
   const [step, setStep] = useState<Step>('input');
   const [apiKey, setApiKey] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [language, setLanguage] = useState<Language>('japanese');
   const [status, setStatus] = useState('');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [wordPairs, setWordPairs] = useState<WordPair[]>([]);
@@ -20,22 +22,29 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── File handling ──
-  const handleFile = useCallback((f: File | null) => {
-    if (f && f.type === 'application/pdf') {
-      setFile(f);
-      setError('');
-    } else if (f) {
-      setError('请选择 PDF 文件 (Please select a PDF file)');
+  const handleFiles = useCallback((newFiles: FileList | File[]) => {
+    const pdfFiles = Array.from(newFiles).filter((f) => f.type === 'application/pdf');
+    
+    if (pdfFiles.length === 0 && newFiles.length > 0) {
+      setError('请只选择 PDF 文件 (Please select only PDF files)');
+      return;
     }
+    
+    setFiles((prev) => [...prev, ...pdfFiles]);
+    setError('');
+  }, []);
+
+  const removeFile = useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const onDrop = useCallback(
     (e: DragEvent) => {
       e.preventDefault();
       setDragOver(false);
-      handleFile(e.dataTransfer.files[0] ?? null);
+      handleFiles(e.dataTransfer.files);
     },
-    [handleFile]
+    [handleFiles]
   );
 
   const onDragOver = (e: DragEvent) => {
@@ -50,8 +59,8 @@ export default function App() {
       setError('请填写 Gemini API Key');
       return;
     }
-    if (!file) {
-      setError('请选择 PDF 文件');
+    if (files.length === 0) {
+      setError('请选择至少一个 PDF 文件');
       return;
     }
 
@@ -60,14 +69,29 @@ export default function App() {
     setStatus('正在处理中，请稍候... (Processing, please wait...)');
 
     try {
-      // Step 1: PDF → images (in browser)
-      setStatus('正在渲染 PDF 页面... (Rendering PDF pages...)');
-      const images = await pdfToImages(file);
+      const allPairs: WordPair[] = [];
+      let totalPages = 0;
+
+      // Calculate total pages first
+      setStatus('正在计算 PDF 总页数... (Calculating total pages...)');
+      const allImages: string[] = [];
+      const filePages: number[] = [];
+
+      for (const file of files) {
+        const images = await pdfToImages(file);
+        allImages.push(...images);
+        filePages.push(images.length);
+        totalPages += images.length;
+      }
 
       // Step 2: Gemini extraction
-      const pairs = await extractWords(apiKey, images, (current, total) => {
+      setProgress({ current: 0, total: totalPages });
+      let processedPages = 0;
+
+      const pairs = await extractWords(apiKey, allImages, language, (current, total) => {
+        processedPages = current;
         setProgress({ current, total });
-        setStatus(`正在使用 Gemini 处理第 ${current}/${total} 页...`);
+        setStatus(`正在使用 Gemini 处理第 ${current}/${total} 页... (Processing page ${current}/${total}...)`);
       });
 
       setWordPairs(pairs);
@@ -86,9 +110,11 @@ export default function App() {
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const baseName = file?.name.replace(/\.pdf$/i, '') ?? '单词表';
+    const fileNameBase = files.length === 1 
+      ? files[0].name.replace(/\.pdf$/i, '') 
+      : `${language === 'japanese' ? '日语' : '英语'}_单词表`;
     a.href = url;
-    a.download = `${baseName}_转换结果.html`;
+    a.download = `${fileNameBase}_转换结果.html`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -96,7 +122,8 @@ export default function App() {
   // ── Reset ──
   const reset = () => {
     setStep('input');
-    setFile(null);
+    setFiles([]);
+    setLanguage('japanese');
     setStatus('');
     setProgress({ current: 0, total: 0 });
     setWordPairs([]);
@@ -125,6 +152,33 @@ export default function App() {
           className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition mb-6"
         />
 
+        {/* Language Selection */}
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          选择语言 (Choose Language)
+        </label>
+        <div className="flex gap-3 mb-6">
+          <button
+            onClick={() => setLanguage('japanese')}
+            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
+              language === 'japanese'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            日语 (Japanese)
+          </button>
+          <button
+            onClick={() => setLanguage('english')}
+            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
+              language === 'english'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            英语 (English)
+          </button>
+        </div>
+
         {/* File Drop Zone */}
         <div
           onClick={() => fileInputRef.current?.click()}
@@ -138,26 +192,46 @@ export default function App() {
           }`}
         >
           <p className="text-4xl mb-3">📄</p>
-          {file ? (
-            <p className="text-gray-800 font-medium">{file.name}</p>
-          ) : (
-            <>
-              <p className="text-gray-600 font-medium">
-                点击选择或拖拽 PDF 文件到此处
-              </p>
-              <p className="text-gray-400 text-sm mt-1">
-                Click to select or drag & drop a PDF file
-              </p>
-            </>
-          )}
+          <p className="text-gray-600 font-medium">
+            点击选择或拖拽 PDF 文件到此处
+          </p>
+          <p className="text-gray-400 text-sm mt-1">
+            Click to select or drag & drop PDF files (支持多个文件 / Multiple files supported)
+          </p>
         </div>
         <input
           ref={fileInputRef}
           type="file"
           accept=".pdf"
+          multiple
           className="hidden"
-          onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => handleFiles(e.target.files ?? [])}
         />
+
+        {/* File List */}
+        {files.length > 0 && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              已选择 {files.length} 个文件 ({files.length} file{files.length > 1 ? 's' : ''} selected)
+            </p>
+            <ul className="space-y-2">
+              {files.map((f, i) => (
+                <li
+                  key={i}
+                  className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 text-sm"
+                >
+                  <span className="text-gray-700 truncate">📄 {f.name}</span>
+                  <button
+                    onClick={() => removeFile(i)}
+                    className="ml-2 px-2 py-1 text-red-600 hover:bg-red-50 rounded transition text-xs"
+                  >
+                    ✕ 删除
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -169,9 +243,9 @@ export default function App() {
         {/* Convert Button */}
         <button
           onClick={startConversion}
-          disabled={!apiKey.trim() || !file}
+          disabled={!apiKey.trim() || files.length === 0}
           className={`w-full mt-6 py-3 rounded-lg font-bold text-white text-base transition ${
-            apiKey.trim() && file
+            apiKey.trim() && files.length > 0
               ? 'bg-green-600 hover:bg-green-700 active:scale-[0.98] cursor-pointer'
               : 'bg-gray-300 cursor-not-allowed'
           }`}
@@ -257,29 +331,39 @@ export default function App() {
           <table className="result-table">
             <thead>
               <tr>
-                <th>外语 (Foreign)</th>
+                <th>{language === 'japanese' ? '日语 (Japanese)' : '英语 (English)'}</th>
                 <th>中文 (Chinese)</th>
                 <th>默写/挖空 (Practice)</th>
               </tr>
             </thead>
             <tbody>
-              {wordPairs.map(({ ja, cn, reading }, i) => (
-                <tr key={i}>
-                  <td>
-                    {segmentFurigana(ja, reading).map((seg, si) =>
-                      seg.reading ? (
-                        <ruby key={si}>
-                          {seg.text}<rt>{seg.reading}</rt>
-                        </ruby>
-                      ) : (
-                        <span key={si}>{seg.text}</span>
-                      )
-                    )}
-                  </td>
-                  <td>{cn}</td>
-                  <td className="blank">__________________</td>
-                </tr>
-              ))}
+              {wordPairs.map((item, i) => {
+                let foreignContent: React.ReactNode;
+                
+                if ('ja' in item) {
+                  // Japanese with furigana
+                  foreignContent = segmentFurigana(item.ja, item.reading).map((seg, si) =>
+                    seg.reading ? (
+                      <ruby key={si}>
+                        {seg.text}<rt>{seg.reading}</rt>
+                      </ruby>
+                    ) : (
+                      <span key={si}>{seg.text}</span>
+                    )
+                  );
+                } else {
+                  // English
+                  foreignContent = <span>{item.en}</span>;
+                }
+                
+                return (
+                  <tr key={i}>
+                    <td>{foreignContent}</td>
+                    <td>{item.cn}</td>
+                    <td className="blank">__________________</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -6,15 +6,32 @@ import { renderFuriganaHtml } from './furigana';
  * Styles preserved from PdfToWordList.py lines 107-145; furigana added.
  */
 export function generateHtml(wordPairs: WordPair[]): string {
+  // Determine if we're dealing with Japanese or English content
+  const isJapanese = wordPairs.length > 0 && 'ja' in wordPairs[0];
+  const headerLeft = isJapanese ? 'Japanese' : 'English';
+
   const rows = wordPairs
-    .map(
-      ({ ja, cn, reading }) => `
+    .map((item) => {
+      let foreignWord: string;
+      let furiganaHtml: string;
+
+      if ('ja' in item) {
+        // Japanese
+        foreignWord = item.ja;
+        furiganaHtml = renderFuriganaHtml(item.ja, item.reading);
+      } else {
+        // English
+        foreignWord = item.en;
+        furiganaHtml = escapeHtml(item.en);
+      }
+
+      return `
                     <tr>
-                        <td>${renderFuriganaHtml(ja, reading)}</td>
-                        <td>${escapeHtml(cn)}</td>
+                        <td>${furiganaHtml}</td>
+                        <td>${escapeHtml(item.cn)}</td>
                         <td class="blank">__________________</td>
-                    </tr>`
-    )
+                    </tr>`;
+    })
     .join('');
 
   return `<!DOCTYPE html>
@@ -35,7 +52,7 @@ export function generateHtml(wordPairs: WordPair[]): string {
     <table>
         <thead>
             <tr>
-                <th>外语 (Foreign)</th>
+                <th>${headerLeft} (${headerLeft === 'Japanese' ? '日语' : '英语'})</th>
                 <th>中文 (Chinese)</th>
                 <th>默写/挖空 (Practice)</th>
             </tr>

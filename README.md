@@ -1,17 +1,26 @@
 # PDF 单词表转换工具 (Web版)
 
-基于原 [PdfToWordList.py](../PdfToWordList.py) 的纯前端 Web 版。上传 PDF 单词表，通过 Gemini API 提取日-中单词对，生成可下载的 HTML 默写表。
+基于原 [PdfToWordList.py](../PdfToWordList.py) 的纯前端 Web 版。上传 PDF 单词表，通过 Gemini API 提取日-中或英-中单词对，生成可下载的 HTML 默写表。
+
+## 新增功能 (v1.2.0)
+
+- ✅ **多语言支持**：现已支持日语和英语两种语言的单词表提取
+- ✅ **多文件上传**：支持同时上传多个 PDF 文件，一次性处理所有文件
+- ✅ **语言切换按钮**：UI 中添加了直观的语言选择界面
+- ✅ **文件列表管理**：选择多个文件后显示文件列表，支持删除单个文件
 
 ## 与原版的对应关系
 
 | 原版 (tkinter) | Web 版 |
 |---|---|
 | `tkinter.Entry` API Key 输入 | `<input type="password">` |
-| `filedialog.askopenfilename` | 拖拽 / 点击上传 |
+| `filedialog.askopenfilename` | 拖拽 / 点击上传（支持多文件） |
 | `fitz.open` PDF 渲染 | `pdfjs-dist` 浏览器渲染 |
 | `genai.upload_file` + `generate_content` | `@google/generative-ai` inline base64 |
 | `generate_html()` 输出 HTML 文件 | 页面预览 + 下载按钮 |
 | 表格样式 (lines 107-145) | **完全一致**，一字未改 |
+| 日语专用 | 日语 + 英语双语支持 |
+| 单文件处理 | 支持多文件批量处理 |
 
 ## 本地运行
 
