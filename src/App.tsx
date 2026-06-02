@@ -3,7 +3,9 @@ import { pdfToImages } from './services/pdfService';
 import { extractWords, type WordPair } from './services/geminiService';
 import { generateHtml } from './utils/htmlGenerator';
 import { segmentFurigana } from './utils/furigana';
+import pkg from '../package.json';
 
+const VERSION = pkg.version;
 type Step = 'input' | 'processing' | 'result';
 
 export default function App() {
@@ -108,6 +110,7 @@ export default function App() {
         {/* Header */}
         <h1 className="text-2xl font-bold text-center text-gray-800 mb-8">
           PDF 单词表转换工具
+          <span className="text-xs text-gray-400 ml-2 align-top">v{VERSION}</span>
         </h1>
 
         {/* API Key */}
@@ -187,6 +190,7 @@ export default function App() {
       <div className="max-w-lg mx-auto mt-16 px-4 text-center">
         <h1 className="text-2xl font-bold text-gray-800 mb-8">
           PDF 单词表转换工具
+          <span className="text-xs text-gray-400 ml-2 align-top">v{VERSION}</span>
         </h1>
 
         {/* Spinner */}
@@ -219,6 +223,7 @@ export default function App() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
           PDF 单词表转换工具
+          <span className="text-xs text-gray-400 ml-2 align-top">v{VERSION}</span>
         </h1>
         <div className="flex gap-3">
           <button
