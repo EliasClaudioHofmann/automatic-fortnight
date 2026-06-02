@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, type DragEvent } from 'react';
 import { pdfToImages } from './services/pdfService';
 import { extractWords, type WordPair } from './services/geminiService';
 import { generateHtml } from './utils/htmlGenerator';
+import { generateDocx } from './utils/docxGenerator';
 import { segmentFurigana } from './utils/furigana';
 import pkg from '../package.json';
 
@@ -105,18 +106,35 @@ export default function App() {
   };
 
   // ── Download ──
+  const fileNameBase = files.length === 1
+    ? files[0].name.replace(/\.pdf$/i, '')
+    : `${language === 'japanese' ? '日语' : '英语'}_单词表`;
+
   const downloadHtml = () => {
     const html = generateHtml(wordPairs);
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const fileNameBase = files.length === 1 
-      ? files[0].name.replace(/\.pdf$/i, '') 
-      : `${language === 'japanese' ? '日语' : '英语'}_单词表`;
     a.href = url;
     a.download = `${fileNameBase}_转换结果.html`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const downloadDocx = async () => {
+    try {
+      setStatus('正在生成 Word 文档... (Generating Word document...)');
+      const blob = await generateDocx(wordPairs, language, fileNameBase);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${fileNameBase}_转换结果.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus('处理完成！(Done!)');
+    } catch (err: any) {
+      setError(err?.message ?? String(err));
+    }
   };
 
   // ── Reset ──
@@ -304,7 +322,13 @@ export default function App() {
             onClick={downloadHtml}
             className="px-5 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 active:scale-[0.98] transition"
           >
-            ⬇ 下载 HTML (Download)
+            ⬇ 下载 HTML
+          </button>
+          <button
+            onClick={downloadDocx}
+            className="px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition"
+          >
+            📄 下载 Word
           </button>
           <button
             onClick={reset}
