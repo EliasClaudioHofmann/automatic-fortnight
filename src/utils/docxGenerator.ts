@@ -13,6 +13,7 @@ import {
   convertMillimetersToTwip,
 } from 'docx';
 import type { WordPair } from '../services/geminiService';
+import type { WordPairDocument } from '../services/geminiService';
 
 // ── Shared style constants (sizes in half-points: 16pt=32, 11pt=22, 10.5pt=21) ──
 const FONT_YAHEI = '微软雅黑';
@@ -167,51 +168,123 @@ function makeDataRow(
 // ── Public API ──
 
 /**
+ * Build one data row for document mode: kana | kanji | chinese | practice.
+ */
+function makeDocumentDataRow(item: WordPairDocument, fillBg: boolean): TableRow {
+  const bg = fillBg ? { fill: STRIPE_BG, type: ShadingType.CLEAR } : undefined;
+
+  const makeCell = (text: string, align: typeof AlignmentType.CENTER | typeof AlignmentType.LEFT) =>
+    new TableCell({
+      shading: bg,
+      verticalAlign: 'center',
+      borders: cellBorders,
+      children: [
+        new Paragraph({
+          alignment: align,
+          children: [
+            new TextRun({
+              text: text || (align === AlignmentType.LEFT ? '—' : ''),
+              font: { name: FONT_YAHEI, eastAsia: FONT_YAHEI },
+              size: 21,
+              ...(align === AlignmentType.LEFT && !text ? { color: '999999' } : {}),
+            }),
+          ],
+        }),
+      ],
+    });
+
+  return new TableRow({
+    children: [
+      makeCell(item.kana, AlignmentType.LEFT),
+      makeCell(item.kanji, AlignmentType.LEFT),
+      makeCell(item.cn, AlignmentType.CENTER),
+      new TableCell({
+        shading: bg,
+        verticalAlign: 'center',
+        borders: cellBorders,
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({
+                text: '',
+                font: { name: FONT_ARIAL },
+                size: 21,
+                color: GRAY_TEXT,
+              }),
+            ],
+          }),
+        ],
+      }),
+    ],
+  });
+}
+
+/**
  * Generate a .docx Blob from extracted word pairs.
  *
  * Japanese words include their reading in the table cell (e.g. "漢字（かんじ）").
  * English words are shown as-is.
+ * Document mode: 4-column layout (kana | kanji | chinese | practice).
  */
 export async function generateDocx(
   wordPairs: WordPair[],
-  language: 'japanese' | 'english',
+  language: 'japanese' | 'english' | 'document',
   fileName?: string,
 ): Promise<Blob> {
   const isJapanese = language === 'japanese';
+  const isDocument = language === 'document';
 
   // Title from file name hint, or generic
-  const title = fileName ?? (isJapanese ? '日语单词表' : '英语单词表');
+  const title = fileName ?? (isDocument ? '日语单词表（文档）' : isJapanese ? '日语单词表' : '英语单词表');
 
-  // Build rows
-  const headerCols: ColumnDef[] = isJapanese
-    ? [
-        { text: '日语 (Japanese)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-        { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-        { text: '默写区（抄写/听写）', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-      ]
-    : [
-        { text: 'English', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-        { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-        { text: '默写区（抄写/听写）', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-      ];
+  // Build header columns
+  let headerCols: ColumnDef[];
+  if (isDocument) {
+    headerCols = [
+      { text: '日文假名 (Kana)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '日汉字 (Kanji)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '默写区（抄写/听写）', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+    ];
+  } else if (isJapanese) {
+    headerCols = [
+      { text: '日语 (Japanese)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '默写区（抄写/听写）', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+    ];
+  } else {
+    headerCols = [
+      { text: 'English', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '默写区（抄写/听写）', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+    ];
+  }
 
   const headerRow = new TableRow({
     children: headerCols.map((c) => makeHeaderCell(c)),
   });
 
-  const dataRows = wordPairs.map((item, i) => {
-    let foreign: string;
-    const foreignFont = isJapanese ? FONT_YAHEI : FONT_ARIAL;
+  // Build data rows
+  let dataRows: TableRow[];
+  if (isDocument) {
+    dataRows = (wordPairs as WordPairDocument[]).map((item, i) =>
+      makeDocumentDataRow(item, i % 2 === 0)
+    );
+  } else {
+    dataRows = wordPairs.map((item, i) => {
+      let foreign: string;
+      const foreignFont = isJapanese ? FONT_YAHEI : FONT_ARIAL;
 
-    if ('ja' in item) {
-      // Japanese: show word + reading like "漢字（かんじ）"
-      foreign = item.reading ? `${item.ja}（${item.reading}）` : item.ja;
-    } else {
-      foreign = item.en;
-    }
+      if ('ja' in item) {
+        foreign = item.reading ? `${item.ja}（${item.reading}）` : item.ja;
+      } else {
+        foreign = (item as any).en;
+      }
 
-    return makeDataRow(foreign, item.cn, foreignFont, i % 2 === 0);
-  });
+      return makeDataRow(foreign, item.cn, foreignFont, i % 2 === 0);
+    });
+  }
 
   const table = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
@@ -226,13 +299,20 @@ export async function generateDocx(
     rows: [headerRow, ...dataRows],
   });
 
+  // Subtitle for non-document mode
+  const docChildren: any[] = [titleParagraph(title)];
+  if (!isDocument) {
+    docChildren.push(subtitleParagraph());
+  }
+  docChildren.push(table);
+
   const doc = new Document({
     sections: [
       {
         properties: {
           page: {
             size: {
-              width: convertMillimetersToTwip(210), // A4
+              width: convertMillimetersToTwip(210),
               height: convertMillimetersToTwip(297),
             },
             margin: {
@@ -243,7 +323,7 @@ export async function generateDocx(
             },
           },
         },
-        children: [titleParagraph(title), subtitleParagraph(), table],
+        children: docChildren,
       },
     ],
   });

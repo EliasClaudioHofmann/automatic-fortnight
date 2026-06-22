@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-type Language = 'japanese' | 'english';
+type Language = 'japanese' | 'english' | 'document';
 
 const PROMPTS = {
   japanese: `You are extracting words from a Japanese-Chinese vocabulary table.
@@ -72,6 +72,63 @@ WRONG outputs (do NOT do this):
 
 Return ONLY a JSON array. No markdown, no explanation. Example:
 [{"en": "comprehensive", "cn": "全面的,综合的"}]`,
+
+  document: `You are extracting Japanese words from a document. The document contains Japanese text — it may be a vocabulary list (with or without Chinese translations), a textbook excerpt, or any document with Japanese words.
+
+CRITICAL: Your output MUST be a valid JSON array with EXACTLY these field names:
+- "kana"  → the HIRAGANA reading of the word (how it's pronounced). REQUIRED for every word.
+- "kanji" → the KANJI form of the word. If the word has no kanji form (pure kana word), set this to an empty string "".
+- "cn"    → the CHINESE translation/meaning of the word. See the TRANSLATION RULES below.
+
+─── TRANSLATION RULES (for the "cn" field) ───
+
+The document may contain Chinese translations for SOME words but not others — even within the same page. You MUST judge PER WORD:
+
+• If the document shows a Chinese meaning next to / paired with THIS specific Japanese word → USE that existing translation. Copy it as-is.
+• If THIS specific Japanese word has NO Chinese translation near it → GENERATE an accurate Chinese translation yourself.
+
+Do NOT assume the whole document is uniform — check each word individually. A vocabulary table might have translations for the first few words but then switch to Japanese-only format, or vice versa.
+
+Signs that a nearby Chinese phrase IS a translation (use it):
+- It appears in the same row/line as the Japanese word in a table-like layout
+- It follows the Japanese word after a separator like "|", "：", ":", "—", tab, or space
+- It's in a column labeled "中文", "汉语", "释义", "意味", etc.
+
+Signs that a nearby Chinese phrase is NOT a translation (generate your own):
+- It's clearly part of the Japanese sentence itself (e.g. kanji that also appear in Chinese)
+- It has no structural pairing with the Japanese word
+- The document is continuous prose, not a word list
+
+When GENERATING translations:
+- Provide concise, dictionary-style Chinese equivalents
+- For words with multiple meanings, give the most common/fitting one based on context
+- Use simplified Chinese (简体中文)
+
+─── EXTRACTION RULES ───
+
+1. Extract EVERY Japanese word found in the document — nouns, verbs, adjectives, adverbs, particles (if they appear as vocabulary items).
+2. If the word appears written in kanji, put the kanji in "kanji" and generate the hiragana reading in "kana".
+3. If the word appears only in kana (hiragana/katakana), put that kana in "kana" and set "kanji" to "".
+4. If the document shows both forms (e.g. "漢字（かんじ）" or "かんじ（漢字）"), extract both: "kanji"="漢字", "kana"="かんじ".
+5. For verbs: the "kanji" field should contain the dictionary form. For example, if you see "食べる", set kanji="食べる" and kana="たべる".
+6. For katakana words (loanwords), set kana to the katakana form and kanji to "".
+
+Example output:
+[
+  {"kana": "かんじ", "kanji": "漢字", "cn": "汉字"},
+  {"kana": "たべる", "kanji": "食べる", "cn": "吃"},
+  {"kana": "コンピューター", "kanji": "", "cn": "电脑"},
+  {"kana": "あたらしい", "kanji": "新しい", "cn": "新的"}
+]
+
+WRONG outputs (never do these):
+- {"kana": "漢字", ...} ← kanji in kana field
+- {"kanji": "かんじ", ...} ← kana in kanji field
+- Missing "kana" field ← REQUIRED
+- Missing "kanji" field ← REQUIRED (use "" if no kanji)
+- Leaving "cn" empty ← REQUIRED, always provide a Chinese translation
+
+Return ONLY a JSON array. No markdown, no explanation, no extra text.`,
 };
 
 // ── Regex patterns for kana(kanji) detection (post-processing safety net) ──
@@ -169,7 +226,14 @@ export interface WordPairEnglish {
   type: 'english';
 }
 
-export type WordPair = WordPairJapanese | WordPairEnglish;
+export interface WordPairDocument {
+  kana: string;
+  kanji: string;
+  cn: string;
+  type: 'document';
+}
+
+export type WordPair = WordPairJapanese | WordPairEnglish | WordPairDocument;
 
 /**
  * Extract language-specific word pairs from PDF page images using Gemini.
@@ -252,6 +316,78 @@ export async function extractWords(
     } catch (error) {
       // Log error but skip page — same behavior as original
       console.warn(`Error processing page ${i + 1}:`, error);
+      continue;
+    }
+  }
+
+  return allPairs;
+}
+
+/**
+ * Extract Japanese word pairs from document text (PDF/Word documents) using Gemini.
+ * This is a text-in, text-out API call — no image processing needed.
+ * The document text is sent directly to Gemini with the document-mode prompt.
+ */
+export async function extractWordsFromDocument(
+  apiKey: string,
+  documentText: string,
+): Promise<WordPairDocument[]> {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
+  const prompt = PROMPTS.document;
+
+  // Split long documents into chunks to stay within reasonable context limits.
+  // Each chunk is ~8000 chars — small enough for fast processing.
+  const CHUNK_SIZE = 8000;
+  const chunks: string[] = [];
+  for (let i = 0; i < documentText.length; i += CHUNK_SIZE) {
+    chunks.push(documentText.slice(i, i + CHUNK_SIZE));
+  }
+
+  const allPairs: WordPairDocument[] = [];
+
+  for (let ci = 0; ci < chunks.length; ci++) {
+    const chunk = chunks[ci];
+    const chunkLabel = chunks.length > 1
+      ? `\n\n[This is part ${ci + 1} of ${chunks.length} of the document.]`
+      : '';
+
+    try {
+      const result = await model.generateContent([
+        { text: chunk + chunkLabel },
+        prompt,
+      ]);
+
+      const text = result.response.text();
+
+      // Try to extract JSON from response
+      let jsonStr = text;
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        jsonStr = jsonMatch[0];
+      }
+
+      jsonStr = jsonStr
+        .replace(/```json\s*/g, '')
+        .replace(/```\s*/g, '')
+        .trim();
+
+      const pairs = JSON.parse(jsonStr);
+
+      if (Array.isArray(pairs)) {
+        for (const item of pairs) {
+          if (item.kana || item.kanji) {
+            allPairs.push({
+              kana: String(item.kana || '').trim(),
+              kanji: String(item.kanji || '').trim(),
+              cn: String(item.cn || '').trim(),
+              type: 'document',
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn(`Error processing document chunk ${ci + 1}:`, error);
       continue;
     }
   }

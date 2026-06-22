@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, type DragEvent } from 'react';
 import { pdfToImages } from './services/pdfService';
-import { extractWords, type WordPair } from './services/geminiService';
+import { extractTextFromFile } from './services/documentService';
+import { extractWords, extractWordsFromDocument, type WordPair } from './services/geminiService';
 import { generateHtml } from './utils/htmlGenerator';
 import { generateDocx } from './utils/docxGenerator';
 import { segmentFurigana } from './utils/furigana';
@@ -8,7 +9,7 @@ import pkg from '../package.json';
 
 const VERSION = pkg.version;
 type Step = 'input' | 'processing' | 'result';
-type Language = 'japanese' | 'english';
+type Language = 'japanese' | 'english' | 'document';
 
 export default function App() {
   const [step, setStep] = useState<Step>('input');
@@ -24,6 +25,23 @@ export default function App() {
 
   // ── File handling ──
   const handleFiles = useCallback((newFiles: FileList | File[]) => {
+    if (language === 'document') {
+      // Document mode: accept .pdf, .docx
+      const validFiles = Array.from(newFiles).filter((f) => {
+        const name = f.name.toLowerCase();
+        return name.endsWith('.pdf') || name.endsWith('.docx');
+      });
+
+      if (validFiles.length === 0 && newFiles.length > 0) {
+        setError('请上传 PDF 或 Word (.docx) 文件');
+        return;
+      }
+      setFiles((prev) => [...prev, ...validFiles]);
+      setError('');
+      return;
+    }
+
+    // Japanese / English mode: PDF only
     const pdfFiles = Array.from(newFiles).filter((f) => f.type === 'application/pdf');
     
     if (pdfFiles.length === 0 && newFiles.length > 0) {
@@ -33,7 +51,7 @@ export default function App() {
     
     setFiles((prev) => [...prev, ...pdfFiles]);
     setError('');
-  }, []);
+  }, [language]);
 
   const removeFile = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -61,7 +79,9 @@ export default function App() {
       return;
     }
     if (files.length === 0) {
-      setError('请选择至少一个 PDF 文件');
+      setError(language === 'document'
+        ? '请至少选择一个 PDF 或 Word 文件'
+        : '请选择至少一个 PDF 文件');
       return;
     }
 
@@ -70,6 +90,35 @@ export default function App() {
     setStatus('正在处理中，请稍候... (Processing, please wait...)');
 
     try {
+      // ── Document mode: text extraction + Gemini text API ──
+      if (language === 'document') {
+        setStatus('正在提取文档文本... (Extracting text from documents...)');
+        const textParts: string[] = [];
+        for (let i = 0; i < files.length; i++) {
+          setStatus(`正在提取第 ${i + 1}/${files.length} 个文件... (Extracting file ${i + 1}/${files.length}...)`);
+          const text = await extractTextFromFile(files[i]);
+          if (text) textParts.push(text);
+        }
+
+        if (textParts.length === 0) {
+          throw new Error('未能从文件中提取到文本内容。请确认文件包含可读文字。');
+        }
+
+        const fullText = textParts.join('\n\n---\n\n');
+
+        setStatus('正在使用 Gemini 分析文本... (Analyzing text with Gemini...)');
+        setProgress({ current: 0, total: 1 });
+
+        const pairs = await extractWordsFromDocument(apiKey, fullText);
+
+        setWordPairs(pairs);
+        setProgress({ current: 1, total: 1 });
+        setStatus('处理完成！(Done!)');
+        setStep('result');
+        return;
+      }
+
+      // ── Japanese / English mode: PDF image rendering + Gemini Vision ──
       const allPairs: WordPair[] = [];
       let totalPages = 0;
 
@@ -107,8 +156,10 @@ export default function App() {
 
   // ── Download ──
   const fileNameBase = files.length === 1
-    ? files[0].name.replace(/\.pdf$/i, '')
-    : `${language === 'japanese' ? '日语' : '英语'}_单词表`;
+    ? files[0].name.replace(/\.(pdf|docx|doc)$/i, '')
+    : (language === 'document'
+        ? '日语单词表_文档'
+        : `${language === 'japanese' ? '日语' : '英语'}_单词表`);
 
   const downloadHtml = () => {
     const html = generateHtml(wordPairs);
@@ -195,6 +246,16 @@ export default function App() {
           >
             英语 (English)
           </button>
+          <button
+            onClick={() => setLanguage('document')}
+            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
+              language === 'document'
+                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            文档上传 (Document)
+          </button>
         </div>
 
         {/* File Drop Zone */}
@@ -209,18 +270,22 @@ export default function App() {
               : 'border-gray-300 bg-white hover:border-gray-400'
           }`}
         >
-          <p className="text-4xl mb-3">📄</p>
+          <p className="text-4xl mb-3">{language === 'document' ? '📄📝' : '📄'}</p>
           <p className="text-gray-600 font-medium">
-            点击选择或拖拽 PDF 文件到此处
+            {language === 'document'
+              ? '点击选择或拖拽 PDF / Word 文件到此处'
+              : '点击选择或拖拽 PDF 文件到此处'}
           </p>
           <p className="text-gray-400 text-sm mt-1">
-            Click to select or drag & drop PDF files (支持多个文件 / Multiple files supported)
+            {language === 'document'
+              ? '支持 .pdf 和 .docx 文件 (Support .pdf and .docx files)'
+              : 'Click to select or drag & drop PDF files (支持多个文件 / Multiple files supported)'}
           </p>
         </div>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf"
+          accept={language === 'document' ? '.pdf,.docx' : '.pdf'}
           multiple
           className="hidden"
           onChange={(e) => handleFiles(e.target.files ?? [])}
@@ -355,16 +420,30 @@ export default function App() {
           <table className="result-table">
             <thead>
               <tr>
-                <th>{language === 'japanese' ? '日语 (Japanese)' : '英语 (English)'}</th>
-                <th>中文 (Chinese)</th>
-                <th>默写/挖空 (Practice)</th>
+                {language === 'document' ? (
+                  <>
+                    <th>日文假名 (Kana)</th>
+                    <th>日汉字 (Kanji)</th>
+                    <th>中文意思 (Chinese)</th>
+                    <th>默写/挖空 (Practice)</th>
+                  </>
+                ) : (
+                  <>
+                    <th>{language === 'japanese' ? '日语 (Japanese)' : '英语 (English)'}</th>
+                    <th>中文 (Chinese)</th>
+                    <th>默写/挖空 (Practice)</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
               {wordPairs.map((item, i) => {
                 let foreignContent: React.ReactNode;
                 
-                if ('ja' in item) {
+                if ('type' in item && item.type === 'document') {
+                  // Document mode: show kana and kanji in separate cells
+                  foreignContent = null; // not used directly — handled inline below
+                } else if ('ja' in item) {
                   // Japanese with furigana
                   foreignContent = segmentFurigana(item.ja, item.reading).map((seg, si) =>
                     seg.reading ? (
@@ -378,6 +457,18 @@ export default function App() {
                 } else {
                   // English
                   foreignContent = <span>{item.en}</span>;
+                }
+                
+                // Document mode: 4-column layout
+                if ('type' in item && item.type === 'document') {
+                  return (
+                    <tr key={i}>
+                      <td>{item.kana}</td>
+                      <td>{item.kanji || <span style={{color: '#999'}}>—</span>}</td>
+                      <td>{item.cn}</td>
+                      <td className="blank">__________________</td>
+                    </tr>
+                  );
                 }
                 
                 return (
