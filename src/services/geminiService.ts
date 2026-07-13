@@ -107,8 +107,10 @@ When GENERATING translations:
 
 ─── EXAMPLE RULES (for the "example" field) ───
 
-- Check if there is an existing phrase or example sentence containing or associated with the Japanese word in the document (e.g., in the next line, right after the word, or in parentheses). If so, extract it exactly as it appears.
-- If no such phrase or example sentence exists in the document, you MUST generate a simple Japanese phrase or short example sentence using the word. You may optionally include its Chinese translation in parentheses (e.g., "日本語を勉強する（学习日语）").
+- Check if there is an existing phrase or example sentence containing or associated with the Japanese word in the document (e.g., in the next line, right after the word, or in parentheses). If so, extract it.
+- You MUST format the "example" field to ALWAYS include both the hiragana reading/pronunciation of the sentence and its Chinese translation in parentheses. The format must be exactly:
+  \`[Japanese sentence/phrase]（[Hiragana pronunciation/reading]）（[Chinese translation]）\`
+- If no phrase or example sentence exists in the document, you MUST generate a simple Japanese phrase or short example sentence using the word, and format it exactly the same way.
 - Keep the generated examples natural, simple, and helpful for language learners.
 
 ─── EXTRACTION RULES ───
@@ -122,10 +124,10 @@ When GENERATING translations:
 
 Example output:
 [
-  {"kana": "かんじ", "kanji": "漢字", "cn": "汉字", "example": "漢字の练习（练习汉字）"},
-  {"kana": "たべる", "kanji": "食べる", "cn": "吃", "example": "ご飯を食べる。"},
-  {"kana": "コンピューター", "kanji": "", "cn": "电脑", "example": "新しいコンピューター"},
-  {"kana": "あたらしい", "kanji": "新しい", "cn": "新的", "example": "新しい本を買う"}
+  {"kana": "かんじ", "kanji": "漢字", "cn": "汉字", "example": "漢字の練習（かんじのれんしゅう）（练习汉字）"},
+  {"kana": "たべる", "kanji": "食べる", "cn": "吃", "example": "ご飯を食べる（ごはんをたべる）（吃饭）"},
+  {"kana": "コンピューター", "kanji": "", "cn": "电脑", "example": "新しいコンピューター（あたらしいこんぴゅーたー）（新电脑）"},
+  {"kana": "あたらしい", "kanji": "新しい", "cn": "新的", "example": "新しい本を買う（あたらしいほんをかう）（买新书）"}
 ]
 
 WRONG outputs (never do these):
