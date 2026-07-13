@@ -76,9 +76,10 @@ Return ONLY a JSON array. No markdown, no explanation. Example:
   document: `You are extracting Japanese words from a document. The document contains Japanese text — it may be a vocabulary list (with or without Chinese translations), a textbook excerpt, or any document with Japanese words.
 
 CRITICAL: Your output MUST be a valid JSON array with EXACTLY these field names:
-- "kana"  → the HIRAGANA reading of the word (how it's pronounced). REQUIRED for every word.
-- "kanji" → the KANJI form of the word. If the word has no kanji form (pure kana word), set this to an empty string "".
-- "cn"    → the CHINESE translation/meaning of the word. See the TRANSLATION RULES below.
+- "kana"    → the HIRAGANA reading of the word (how it's pronounced). REQUIRED for every word.
+- "kanji"   → the KANJI form of the word. If the word has no kanji form (pure kana word), set this to an empty string "".
+- "cn"      → the CHINESE translation/meaning of the word. See the TRANSLATION RULES below.
+- "example" → the phrase or example sentence using the word. See the EXAMPLE RULES below.
 
 ─── TRANSLATION RULES (for the "cn" field) ───
 
@@ -104,6 +105,12 @@ When GENERATING translations:
 - For words with multiple meanings, give the most common/fitting one based on context
 - Use simplified Chinese (简体中文)
 
+─── EXAMPLE RULES (for the "example" field) ───
+
+- Check if there is an existing phrase or example sentence containing or associated with the Japanese word in the document (e.g., in the next line, right after the word, or in parentheses). If so, extract it exactly as it appears.
+- If no such phrase or example sentence exists in the document, you MUST generate a simple Japanese phrase or short example sentence using the word. You may optionally include its Chinese translation in parentheses (e.g., "日本語を勉強する（学习日语）").
+- Keep the generated examples natural, simple, and helpful for language learners.
+
 ─── EXTRACTION RULES ───
 
 1. Extract EVERY Japanese word found in the document — nouns, verbs, adjectives, adverbs, particles (if they appear as vocabulary items).
@@ -115,10 +122,10 @@ When GENERATING translations:
 
 Example output:
 [
-  {"kana": "かんじ", "kanji": "漢字", "cn": "汉字"},
-  {"kana": "たべる", "kanji": "食べる", "cn": "吃"},
-  {"kana": "コンピューター", "kanji": "", "cn": "电脑"},
-  {"kana": "あたらしい", "kanji": "新しい", "cn": "新的"}
+  {"kana": "かんじ", "kanji": "漢字", "cn": "汉字", "example": "漢字の练习（练习汉字）"},
+  {"kana": "たべる", "kanji": "食べる", "cn": "吃", "example": "ご飯を食べる。"},
+  {"kana": "コンピューター", "kanji": "", "cn": "电脑", "example": "新しいコンピューター"},
+  {"kana": "あたらしい", "kanji": "新しい", "cn": "新的", "example": "新しい本を買う"}
 ]
 
 WRONG outputs (never do these):
@@ -230,6 +237,7 @@ export interface WordPairDocument {
   kana: string;
   kanji: string;
   cn: string;
+  example: string;
   type: 'document';
 }
 
@@ -381,6 +389,7 @@ export async function extractWordsFromDocument(
               kana: String(item.kana || '').trim(),
               kanji: String(item.kanji || '').trim(),
               cn: String(item.cn || '').trim(),
+              example: String(item.example || '').trim(),
               type: 'document',
             });
           }

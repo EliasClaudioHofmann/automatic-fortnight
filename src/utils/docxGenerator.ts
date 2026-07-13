@@ -198,6 +198,7 @@ function makeDocumentDataRow(item: WordPairDocument, fillBg: boolean): TableRow 
       makeCell(item.kana, AlignmentType.LEFT),
       makeCell(item.kanji, AlignmentType.LEFT),
       makeCell(item.cn, AlignmentType.CENTER),
+      makeCell(item.example, AlignmentType.LEFT),
       new TableCell({
         shading: bg,
         verticalAlign: 'center',
@@ -245,6 +246,7 @@ export async function generateDocx(
       { text: '日文假名 (Kana)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
       { text: '日汉字 (Kanji)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
       { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '例句 (Example)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
       { text: '默写区（抄写/听写）', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
     ];
   } else if (isJapanese) {

@@ -84,7 +84,7 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => map[c]);
 }
 
-/** Generate 4-column HTML table for document mode (kana | kanji | chinese | practice). */
+/** Generate 5-column HTML table for document mode (kana | kanji | chinese | example | practice). */
 function generateDocumentHtml(wordPairs: WordPairDocument[]): string {
   const rows = wordPairs
     .map((item) => {
@@ -94,6 +94,7 @@ function generateDocumentHtml(wordPairs: WordPairDocument[]): string {
                         <td>${escapeHtml(item.kana)}</td>
                         <td>${kanjiDisplay}</td>
                         <td>${escapeHtml(item.cn)}</td>
+                        <td>${escapeHtml(item.example || '')}</td>
                         <td class="blank">__________________</td>
                     </tr>`;
     })
@@ -119,6 +120,7 @@ function generateDocumentHtml(wordPairs: WordPairDocument[]): string {
                 <th>日文假名 (Kana)</th>
                 <th>日汉字 (Kanji)</th>
                 <th>中文意思 (Chinese)</th>
+                <th>例句 (Example)</th>
                 <th>默写/挖空 (Practice)</th>
             </tr>
         </thead>

@@ -425,6 +425,7 @@ export default function App() {
                     <th>日文假名 (Kana)</th>
                     <th>日汉字 (Kanji)</th>
                     <th>中文意思 (Chinese)</th>
+                    <th>例句 (Example)</th>
                     <th>默写/挖空 (Practice)</th>
                   </>
                 ) : (
@@ -459,13 +460,14 @@ export default function App() {
                   foreignContent = <span>{item.en}</span>;
                 }
                 
-                // Document mode: 4-column layout
+                // Document mode: 5-column layout
                 if ('type' in item && item.type === 'document') {
                   return (
                     <tr key={i}>
                       <td>{item.kana}</td>
                       <td>{item.kanji || <span style={{color: '#999'}}>—</span>}</td>
                       <td>{item.cn}</td>
+                      <td>{item.example || <span style={{color: '#999'}}>—</span>}</td>
                       <td className="blank">__________________</td>
                     </tr>
                   );
