@@ -101,9 +101,11 @@ Signs that a nearby Chinese phrase is NOT a translation (generate your own):
 - The document is continuous prose, not a word list
 
 When GENERATING translations:
-- Provide concise, dictionary-style Chinese equivalents
-- For words with multiple meanings, give the most common/fitting one based on context
-- Use simplified Chinese (简体中文)
+- Provide concise, dictionary-style Chinese equivalents.
+- For words with multiple meanings, give the most common/fitting one based on context.
+- Use simplified Chinese (简体中文).
+- CRITICAL: The "cn" field MUST contain only valid Chinese characters. It MUST NOT contain any Japanese Hiragana or Katakana (e.g., "显示", "移动" are correct Chinese translations, while "示す", "动かす" are WRONG because they contain Japanese kana 'す' and 'かす').
+- CRITICAL: For Japanese Kanji words that look identical to Chinese (like 通学, 用, 方, 案), do NOT just copy them directly into the "cn" field. Provide their actual Chinese meaning in context (e.g., 通学 -> 上学, 用 -> 用途/使用, 案 -> 草案/方案).
 
 ─── EXAMPLE RULES (for the "example" field) ───
 
@@ -140,6 +142,10 @@ WRONG outputs (never do these):
 - Missing "kana" field ← REQUIRED
 - Missing "kanji" field ← REQUIRED (use "" if no kanji)
 - Leaving "cn" empty ← REQUIRED, always provide a Chinese translation
+- Putting Japanese kana (like す, かす, or any Hiragana/Katakana) in the "cn" field
+- Blindly copying the Japanese kanji word to the "cn" field without providing its actual Chinese meaning (e.g., copying "通学" directly to "cn" is wrong; translate it to "上学")
+- Missing "example" field ← REQUIRED (always provide an example sentence)
+- Format of example field not matching \`[Japanese]（[Hiragana]）（[Chinese]）\`
 
 Return ONLY a JSON array. No markdown, no explanation, no extra text.`,
 };
