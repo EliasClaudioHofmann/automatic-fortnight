@@ -111,6 +111,10 @@ When GENERATING translations:
 - You MUST format the "example" field to ALWAYS include both the hiragana reading/pronunciation of the sentence and its Chinese translation in parentheses. The format must be exactly:
   \`[Japanese sentence/phrase]（[Hiragana pronunciation/reading]）（[Chinese translation]）\`
 - If no phrase or example sentence exists in the document, you MUST generate a simple Japanese phrase or short example sentence using the word, and format it exactly the same way.
+- CRITICAL: The extracted or generated example/phrase MUST use the word with the EXACT same reading (pronunciation) and meaning as defined in the "kana" and "cn" fields. For words with multiple readings (homographs/polyphones) or multiple meanings, ensure the example reflects the specific reading in this entry.
+  For example:
+  * If the word is "方" with reading "ほう" and meaning "方向/方面", the example MUST be read as "ほう" (e.g., "あっちの方（あっちのほう）（那个方向）"), NOT read as "かた" (e.g., do NOT use "やり方（やりかた）").
+  * If the word is "行" with reading "ぎょう" and meaning "行", the example MUST be read as "ぎょう" (e.g., "一行目（いちぎょうめ）（第一行）"), NOT read as "い" (e.g., do NOT use "行く（いく）").
 - Keep the generated examples natural, simple, and helpful for language learners.
 
 ─── EXTRACTION RULES ───
