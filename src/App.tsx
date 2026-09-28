@@ -213,6 +213,10 @@ export default function App() {
           📘 N2 语法复习笔记
         </a>
 
+        <a href="/n2-grammar-map.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100">
+          🗺️ N2 语法整书记忆地图
+        </a>
+
         {/* API Key */}
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Gemini API Key
