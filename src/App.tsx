@@ -6,12 +6,14 @@ import { generateHtml } from './utils/htmlGenerator';
 import { generateDocx } from './utils/docxGenerator';
 import { segmentFurigana } from './utils/furigana';
 import pkg from '../package.json';
+import AnkiPage from './anki/AnkiPage';
 
 const VERSION = pkg.version;
 type Step = 'input' | 'processing' | 'result';
 type Language = 'japanese' | 'english' | 'document';
 
 export default function App() {
+  const [ankiMode, setAnkiMode] = useState(false);
   const [step, setStep] = useState<Step>('input');
   const [apiKey, setApiKey] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -200,9 +202,12 @@ export default function App() {
   };
 
   // ── INPUT STEP ──
+  if (ankiMode) return <AnkiPage onBack={() => setAnkiMode(false)} />;
+
   if (step === 'input') {
     return (
       <div className="max-w-lg mx-auto mt-16 px-4">
+        <button onClick={() => setAnkiMode(true)} className="mb-5 w-full rounded-lg bg-indigo-600 text-white font-semibold py-3">上传文档后自动生成 Anki 牌组（三种卡片）</button>
         {/* Header */}
         <h1 className="text-2xl font-bold text-center text-gray-800 mb-8">
           PDF 单词表转换工具

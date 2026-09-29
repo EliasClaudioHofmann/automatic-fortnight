@@ -8,6 +8,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['pdfjs-dist'],
+    exclude: ['apkg-browser-builder'],
     esbuildOptions: {
       target: 'esnext',
     },
