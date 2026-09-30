@@ -222,6 +222,10 @@ export default function App() {
           🗺️ N2 语法整书记忆地图
         </a>
 
+        <a href="/n2-grammar-frequency.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 font-semibold text-amber-800 transition hover:bg-amber-100">
+          📊 N2 真题语法候选频次（审计版）
+        </a>
+
         {/* API Key */}
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Gemini API Key
