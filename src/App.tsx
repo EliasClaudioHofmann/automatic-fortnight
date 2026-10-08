@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, type DragEvent } from 'react';
 import { pdfToImages } from './services/pdfService';
 import { extractTextFromFile } from './services/documentService';
 import { extractWords, extractWordsFromDocument, extractWordsFromText, type WordPair } from './services/geminiService';
-import { isSupportedFile } from './services/fileImport';
+import { isSupportedFile, formatDocumentCompletion } from './services/fileImport';
 import { generateHtml } from './utils/htmlGenerator';
 import { generateDocx } from './utils/docxGenerator';
 import { generateMarkdown } from './utils/markdownGenerator';
@@ -99,11 +99,12 @@ export default function App() {
         setStatus('正在使用 Gemini 分析文本... (Analyzing text with Gemini...)');
         setProgress({ current: 0, total: 1 });
 
-        const pairs = await extractWordsFromDocument(apiKey, fullText);
+        let usedFallback = false;
+        const pairs = await extractWordsFromDocument(apiKey, fullText, () => { usedFallback = true; });
 
         setWordPairs(pairs);
         setProgress({ current: 1, total: 1 });
-        setStatus(failures.length ? `处理完成；以下文件未导入：${failures.join('；')}` : '处理完成！(Done!)');
+        setStatus(formatDocumentCompletion(failures, usedFallback));
         setStep('result');
         return;
       }

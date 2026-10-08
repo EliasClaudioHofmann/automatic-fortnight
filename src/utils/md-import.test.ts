@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isSupportedFile } from '../services/fileImport.ts';
+import { isSupportedFile, formatDocumentCompletion } from '../services/fileImport.ts';
 import { extractTextFromFile } from '../services/documentService.ts';
 import { extractWordsFromText } from '../services/geminiService.ts';
 
@@ -46,4 +46,10 @@ test('English Markdown uses the English vocabulary prompt and returns English wo
   assert.match(calls[0], /"en"/);
   assert.deepEqual(pairs.map(item => 'en' in item ? item.en : ''), ['apple']);
   await assert.rejects(extractWordsFromText('test-key', '   ', 'english', async () => '[]'), /空|内容/);
+});
+
+test('document completion visibly flags fallback output for checking', () => {
+  assert.match(formatDocumentCompletion([], true), /备用模型.*核对/);
+  assert.match(formatDocumentCompletion(['坏文件.md'], true), /坏文件\.md/);
+  assert.equal(formatDocumentCompletion([], false), '处理完成！(Done!)');
 });

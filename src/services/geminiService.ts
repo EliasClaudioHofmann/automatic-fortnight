@@ -394,6 +394,7 @@ export async function extractWords(
 export async function extractWordsFromDocument(
   apiKey: string,
   documentText: string,
+  onFallback?: () => void,
 ): Promise<WordPairDocument[]> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
@@ -416,10 +417,21 @@ export async function extractWordsFromDocument(
       : '';
 
     try {
-      const result = await model.generateContent([
+      const parts = [
         { text: chunk + chunkLabel },
         prompt,
-      ]);
+      ];
+      let result;
+      try {
+        result = await model.generateContent(parts);
+      } catch (primaryError) {
+        if (!(primaryError && typeof primaryError === 'object' && 'status' in primaryError && primaryError.status === 503)) {
+          throw primaryError;
+        }
+        const fallback = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+        result = await fallback.generateContent(parts);
+        onFallback?.();
+      }
 
       const text = result.response.text();
 
@@ -452,10 +464,13 @@ export async function extractWordsFromDocument(
         }
       }
     } catch (error) {
-      console.warn(`Error processing document chunk ${ci + 1}:`, error);
-      continue;
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`文档第 ${ci + 1}/${chunks.length} 段处理失败：${reason}`);
     }
   }
 
+  if (allPairs.length === 0) {
+    throw new Error('未识别到词汇：请检查文档内容，或稍后重试并查看 Gemini 返回信息。');
+  }
   return allPairs;
 }
