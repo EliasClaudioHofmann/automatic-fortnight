@@ -168,7 +168,7 @@ function makeDataRow(
 // ── Public API ──
 
 /**
- * Build one data row for document mode: kana | kanji | chinese | practice.
+ * Build one data row for document mode with two independent practice cells.
  */
 function makeDocumentDataRow(item: WordPairDocument, fillBg: boolean): TableRow {
   const bg = fillBg ? { fill: STRIPE_BG, type: ShadingType.CLEAR } : undefined;
@@ -193,30 +193,22 @@ function makeDocumentDataRow(item: WordPairDocument, fillBg: boolean): TableRow 
       ],
     });
 
+  const practiceCell = () => new TableCell({
+    shading: bg,
+    verticalAlign: 'center',
+    borders: cellBorders,
+    children: [new Paragraph({ children: [new TextRun({ text: '' })] })],
+  });
+
   return new TableRow({
     children: [
       makeCell(item.kana, AlignmentType.LEFT),
+      practiceCell(),
+      practiceCell(),
       makeCell(item.kanji, AlignmentType.LEFT),
-      makeCell(item.cn, AlignmentType.CENTER),
+      makeCell(item.en || '', AlignmentType.CENTER),
       makeCell(item.example, AlignmentType.LEFT),
-      new TableCell({
-        shading: bg,
-        verticalAlign: 'center',
-        borders: cellBorders,
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.CENTER,
-            children: [
-              new TextRun({
-                text: '',
-                font: { name: FONT_ARIAL },
-                size: 21,
-                color: GRAY_TEXT,
-              }),
-            ],
-          }),
-        ],
-      }),
+      makeCell(item.cn, AlignmentType.CENTER),
     ],
   });
 }
@@ -226,7 +218,7 @@ function makeDocumentDataRow(item: WordPairDocument, fillBg: boolean): TableRow 
  *
  * Japanese words include their reading in the table cell (e.g. "漢字（かんじ）").
  * English words are shown as-is.
- * Document mode: 4-column layout (kana | kanji | chinese | practice).
+ * Document mode: 7-column layout (kana | Chinese practice | Japanese practice | kanji | English | example | Chinese).
  */
 export async function generateDocx(
   wordPairs: WordPair[],
@@ -244,10 +236,12 @@ export async function generateDocx(
   if (isDocument) {
     headerCols = [
       { text: '日文假名 (Kana)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '中文默写', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '日文默写', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
       { text: '日汉字 (Kanji)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-      { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '英文翻译 (English)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
       { text: '例句 (Example)', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
-      { text: '默写区（抄写/听写）', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
+      { text: '中文意思', font: FONT_YAHEI, alignment: AlignmentType.CENTER },
     ];
   } else if (isJapanese) {
     headerCols = [

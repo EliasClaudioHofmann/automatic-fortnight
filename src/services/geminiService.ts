@@ -79,6 +79,7 @@ CRITICAL: Your output MUST be a valid JSON array with EXACTLY these field names:
 - "kana"    → the HIRAGANA reading of the word (how it's pronounced). REQUIRED for every word.
 - "kanji"   → the KANJI form of the word. If the word has no kanji form (pure kana word), set this to an empty string "".
 - "cn"      → the CHINESE translation/meaning of the word. See the TRANSLATION RULES below.
+- "en"      → a short, context-appropriate ENGLISH translation of the word (not of the example sentence). REQUIRED for every word.
 - "example" → the phrase or example sentence using the word. See the EXAMPLE RULES below.
 
 ─── TRANSLATION RULES (for the "cn" field) ───
@@ -118,6 +119,7 @@ When GENERATING translations:
   * If the word is "方" with reading "ほう" and meaning "方向/方面", the example MUST be read as "ほう" (e.g., "あっちの方（あっちのほう）（那个方向）"), NOT read as "かた" (e.g., do NOT use "やり方（やりかた）").
   * If the word is "行" with reading "ぎょう" and meaning "行", the example MUST be read as "ぎょう" (e.g., "一行目（いちぎょうめ）（第一行）"), NOT read as "い" (e.g., do NOT use "行く（いく）").
 - Keep the generated examples natural, simple, and helpful for language learners.
+- Keep "en" concise (one common English equivalent matching this entry's reading and meaning); do not copy the example sentence into it.
 
 ─── EXTRACTION RULES ───
 
@@ -130,10 +132,10 @@ When GENERATING translations:
 
 Example output:
 [
-  {"kana": "かんじ", "kanji": "漢字", "cn": "汉字", "example": "漢字の練習（かんじのれんしゅう）（练习汉字）"},
-  {"kana": "たべる", "kanji": "食べる", "cn": "吃", "example": "ご飯を食べる（ごはんをたべる）（吃饭）"},
-  {"kana": "コンピューター", "kanji": "", "cn": "电脑", "example": "新しいコンピューター（あたらしいこんぴゅーたー）（新电脑）"},
-  {"kana": "あたらしい", "kanji": "新しい", "cn": "新的", "example": "新しい本を買う（あたらしいほんをかう）（买新书）"}
+  {"kana": "かんじ", "kanji": "漢字", "cn": "汉字", "en": "Chinese character", "example": "漢字の練習（かんじのれんしゅう）（练习汉字）"},
+  {"kana": "たべる", "kanji": "食べる", "cn": "吃", "en": "to eat", "example": "ご飯を食べる（ごはんをたべる）（吃饭）"},
+  {"kana": "コンピューター", "kanji": "", "cn": "电脑", "en": "computer", "example": "新しいコンピューター（あたらしいこんぴゅーたー）（新电脑）"},
+  {"kana": "あたらしい", "kanji": "新しい", "cn": "新的", "en": "new", "example": "新しい本を買う（あたらしいほんをかう）（买新书）"}
 ]
 
 WRONG outputs (never do these):
@@ -145,6 +147,7 @@ WRONG outputs (never do these):
 - Putting Japanese kana (like す, かす, or any Hiragana/Katakana) in the "cn" field
 - Blindly copying the Japanese kanji word to the "cn" field without providing its actual Chinese meaning (e.g., copying "通学" directly to "cn" is wrong; translate it to "上学")
 - Missing "example" field ← REQUIRED (always provide an example sentence)
+- Missing "en" field ← REQUIRED (always provide a short English word translation)
 - Format of example field not matching \`[Japanese]（[Hiragana]）（[Chinese]）\`
 
 Return ONLY a JSON array. No markdown, no explanation, no extra text.`,
@@ -249,11 +252,51 @@ export interface WordPairDocument {
   kana: string;
   kanji: string;
   cn: string;
+  en?: string;
   example: string;
   type: 'document';
 }
 
 export type WordPair = WordPairJapanese | WordPairEnglish | WordPairDocument;
+
+/** Recognize vocabulary entries in Markdown with the same output fields as PDF mode. */
+export async function extractWordsFromText(
+  apiKey: string,
+  text: string,
+  language: 'japanese' | 'english',
+  generateText?: (source: string, prompt: string) => Promise<string>,
+): Promise<Array<WordPairJapanese | WordPairEnglish>> {
+  if (!text.trim()) throw new Error('Markdown 文件内容为空，无法提取词汇。');
+  const prompt = `${PROMPTS[language]}\nThe input may be Markdown: headings, lists, or tables. Extract vocabulary entries only; do not treat headings or explanations as words. Do not invent entries not present in the input.`;
+  const generator = generateText ?? (async (source: string, instructions: string) => {
+    const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({ model: 'gemini-3.8-flash' });
+    const result = await model.generateContent([{ text: source }, instructions]);
+    return result.response.text();
+  });
+  const output: Array<WordPairJapanese | WordPairEnglish> = [];
+  // Keep the raw Markdown structure intact inside each request, just as document mode does.
+  for (let i = 0; i < text.length; i += 8000) {
+    const response = await generator(text.slice(i, i + 8000), prompt);
+    const json = response.match(/\[[\s\S]*\]/)?.[0] ?? response.replace(/```(?:json)?\s*/g, '').trim();
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) throw new Error('Gemini 未返回词汇数组。');
+    if (language === 'japanese') {
+      const pairs: WordPairJapanese[] = parsed.filter(item => item && item.ja && item.cn).map(item => ({
+        ja: String(item.ja).trim(),
+        cn: String(item.cn).trim(),
+        reading: String(item.reading || '').trim(),
+        pos: item.pos ? String(item.pos).trim() : undefined,
+        type: 'japanese' as const,
+      }));
+      output.push(...postProcessJapanesePairs(pairs));
+    } else {
+      output.push(...parsed.filter(item => item && item.en && item.cn).map(item => ({
+        en: String(item.en).trim(), cn: String(item.cn).trim(), type: 'english' as const,
+      })));
+    }
+  }
+  return output;
+}
 
 /**
  * Extract language-specific word pairs from PDF page images using Gemini.
@@ -266,7 +309,7 @@ export async function extractWords(
   onProgress: (current: number, total: number) => void
 ): Promise<WordPair[]> {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
 
   const allPairs: WordPair[] = [];
   const prompt = PROMPTS[language];
@@ -353,7 +396,7 @@ export async function extractWordsFromDocument(
   documentText: string,
 ): Promise<WordPairDocument[]> {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
   const prompt = PROMPTS.document;
 
   // Split long documents into chunks to stay within reasonable context limits.
@@ -401,6 +444,7 @@ export async function extractWordsFromDocument(
               kana: String(item.kana || '').trim(),
               kanji: String(item.kanji || '').trim(),
               cn: String(item.cn || '').trim(),
+              en: String(item.en || '').trim(),
               example: String(item.example || '').trim(),
               type: 'document',
             });

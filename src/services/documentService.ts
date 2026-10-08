@@ -40,7 +40,7 @@ async function extractTextFromDocx(file: File): Promise<string> {
 
 /**
  * Extract text from a file — dispatches to the right extractor based on extension.
- * Supports: .pdf, .docx
+ * Supports: .pdf, .docx, .md
  */
 export async function extractTextFromFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
@@ -51,6 +51,9 @@ export async function extractTextFromFile(file: File): Promise<string> {
   if (name.endsWith('.docx')) {
     return extractTextFromDocx(file);
   }
+  if (name.endsWith('.md')) {
+    return file.text();
+  }
   // .doc (old format) — mammoth doesn't support it; return empty
-  throw new Error(`不支持的文件格式: ${file.name}。请上传 .pdf 或 .docx 文件。`);
+  throw new Error(`不支持的文件格式: ${file.name}。请上传 .pdf、.docx 或 .md 文件。`);
 }

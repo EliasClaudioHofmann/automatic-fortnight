@@ -1,9 +1,11 @@
 import { useState, useRef, useCallback, type DragEvent } from 'react';
 import { pdfToImages } from './services/pdfService';
 import { extractTextFromFile } from './services/documentService';
-import { extractWords, extractWordsFromDocument, type WordPair } from './services/geminiService';
+import { extractWords, extractWordsFromDocument, extractWordsFromText, type WordPair } from './services/geminiService';
+import { isSupportedFile } from './services/fileImport';
 import { generateHtml } from './utils/htmlGenerator';
 import { generateDocx } from './utils/docxGenerator';
+import { generateMarkdown } from './utils/markdownGenerator';
 import { segmentFurigana } from './utils/furigana';
 import pkg from '../package.json';
 import AnkiPage from './anki/AnkiPage';
@@ -27,32 +29,12 @@ export default function App() {
 
   // ── File handling ──
   const handleFiles = useCallback((newFiles: FileList | File[]) => {
-    if (language === 'document') {
-      // Document mode: accept .pdf, .docx
-      const validFiles = Array.from(newFiles).filter((f) => {
-        const name = f.name.toLowerCase();
-        return name.endsWith('.pdf') || name.endsWith('.docx');
-      });
-
-      if (validFiles.length === 0 && newFiles.length > 0) {
-        setError('请上传 PDF 或 Word (.docx) 文件');
-        return;
-      }
-      setFiles((prev) => [...prev, ...validFiles]);
-      setError('');
-      return;
-    }
-
-    // Japanese / English mode: PDF only
-    const pdfFiles = Array.from(newFiles).filter((f) => f.type === 'application/pdf');
-    
-    if (pdfFiles.length === 0 && newFiles.length > 0) {
-      setError('请只选择 PDF 文件 (Please select only PDF files)');
-      return;
-    }
-    
-    setFiles((prev) => [...prev, ...pdfFiles]);
-    setError('');
+    const selected = Array.from(newFiles);
+    const validFiles = selected.filter((file) => isSupportedFile(language, file.name));
+    if (validFiles.length) setFiles((prev) => [...prev, ...validFiles]);
+    setError(selected.length !== validFiles.length
+      ? `已跳过 ${selected.length - validFiles.length} 个不支持的文件；${language === 'document' ? '请选择 PDF、DOCX 或 MD' : '请选择 PDF 或 MD'}。`
+      : '');
   }, [language]);
 
   const removeFile = useCallback((index: number) => {
@@ -82,8 +64,8 @@ export default function App() {
     }
     if (files.length === 0) {
       setError(language === 'document'
-        ? '请至少选择一个 PDF 或 Word 文件'
-        : '请选择至少一个 PDF 文件');
+        ? '请至少选择一个 PDF、DOCX 或 MD 文件'
+        : '请选择至少一个 PDF 或 MD 文件');
       return;
     }
 
@@ -96,14 +78,20 @@ export default function App() {
       if (language === 'document') {
         setStatus('正在提取文档文本... (Extracting text from documents...)');
         const textParts: string[] = [];
+        const failures: string[] = [];
         for (let i = 0; i < files.length; i++) {
           setStatus(`正在提取第 ${i + 1}/${files.length} 个文件... (Extracting file ${i + 1}/${files.length}...)`);
-          const text = await extractTextFromFile(files[i]);
-          if (text) textParts.push(text);
+          try {
+            const text = await extractTextFromFile(files[i]);
+            if (text.trim()) textParts.push(text);
+            else failures.push(`${files[i].name}（空文件或无可读文字）`);
+          } catch (cause) {
+            failures.push(`${files[i].name}（${cause instanceof Error ? cause.message : '读取失败'}）`);
+          }
         }
 
         if (textParts.length === 0) {
-          throw new Error('未能从文件中提取到文本内容。请确认文件包含可读文字。');
+          throw new Error(`未能从文件中提取到文本内容。${failures.join('；')}`);
         }
 
         const fullText = textParts.join('\n\n---\n\n');
@@ -115,39 +103,39 @@ export default function App() {
 
         setWordPairs(pairs);
         setProgress({ current: 1, total: 1 });
-        setStatus('处理完成！(Done!)');
+        setStatus(failures.length ? `处理完成；以下文件未导入：${failures.join('；')}` : '处理完成！(Done!)');
         setStep('result');
         return;
       }
 
-      // ── Japanese / English mode: PDF image rendering + Gemini Vision ──
+      // ── Japanese / English: PDFs use Vision; Markdown uses the same language prompt as text. ──
       const allPairs: WordPair[] = [];
-      let totalPages = 0;
-
-      // Calculate total pages first
-      setStatus('正在计算 PDF 总页数... (Calculating total pages...)');
-      const allImages: string[] = [];
-      const filePages: number[] = [];
-
-      for (const file of files) {
-        const images = await pdfToImages(file);
-        allImages.push(...images);
-        filePages.push(images.length);
-        totalPages += images.length;
+      const failures: string[] = [];
+      setProgress({ current: 0, total: files.length });
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          let pairs: WordPair[];
+          if (file.name.toLowerCase().endsWith('.md')) {
+            setStatus(`正在读取 Markdown：${file.name} (${i + 1}/${files.length})`);
+            pairs = await extractWordsFromText(apiKey, await file.text(), language);
+          } else {
+            setStatus(`正在读取 PDF：${file.name} (${i + 1}/${files.length})`);
+            const images = await pdfToImages(file);
+            pairs = await extractWords(apiKey, images, language, (page, total) => {
+              setStatus(`正在处理 ${file.name} 第 ${page}/${total} 页...`);
+            });
+          }
+          if (pairs.length) allPairs.push(...pairs);
+          else failures.push(`${file.name}（未识别到词汇）`);
+        } catch (cause) {
+          failures.push(`${file.name}（${cause instanceof Error ? cause.message : '处理失败'}）`);
+        }
+        setProgress({ current: i + 1, total: files.length });
       }
-
-      // Step 2: Gemini extraction
-      setProgress({ current: 0, total: totalPages });
-      let processedPages = 0;
-
-      const pairs = await extractWords(apiKey, allImages, language, (current, total) => {
-        processedPages = current;
-        setProgress({ current, total });
-        setStatus(`正在使用 Gemini 处理第 ${current}/${total} 页... (Processing page ${current}/${total}...)`);
-      });
-
-      setWordPairs(pairs);
-      setStatus('处理完成！(Done!)');
+      if (!allPairs.length) throw new Error(`未能从文件中提取词汇。${failures.join('；')}`);
+      setWordPairs(allPairs);
+      setStatus(failures.length ? `处理完成；以下文件未导入：${failures.join('；')}` : '处理完成！(Done!)');
       setStep('result');
     } catch (err: any) {
       setError(err?.message ?? String(err));
@@ -158,7 +146,7 @@ export default function App() {
 
   // ── Download ──
   const fileNameBase = files.length === 1
-    ? files[0].name.replace(/\.(pdf|docx|doc)$/i, '')
+    ? files[0].name.replace(/\.(pdf|docx|md)$/i, '')
     : (language === 'document'
         ? '日语单词表_文档'
         : `${language === 'japanese' ? '日语' : '英语'}_单词表`);
@@ -170,6 +158,17 @@ export default function App() {
     const a = document.createElement('a');
     a.href = url;
     a.download = `${fileNameBase}_转换结果.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadMarkdown = () => {
+    const markdown = generateMarkdown(wordPairs, language);
+    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileNameBase}_转换结果.md`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -244,7 +243,7 @@ export default function App() {
         </label>
         <div className="flex gap-3 mb-6">
           <button
-            onClick={() => setLanguage('japanese')}
+            onClick={() => { setLanguage('japanese'); setFiles(prev => prev.filter(file => isSupportedFile('japanese', file.name))); setError(''); }}
             className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
               language === 'japanese'
                 ? 'bg-blue-600 text-white ring-2 ring-blue-400'
@@ -254,7 +253,7 @@ export default function App() {
             日语 (Japanese)
           </button>
           <button
-            onClick={() => setLanguage('english')}
+            onClick={() => { setLanguage('english'); setFiles(prev => prev.filter(file => isSupportedFile('english', file.name))); setError(''); }}
             className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
               language === 'english'
                 ? 'bg-blue-600 text-white ring-2 ring-blue-400'
@@ -264,7 +263,7 @@ export default function App() {
             英语 (English)
           </button>
           <button
-            onClick={() => setLanguage('document')}
+            onClick={() => { setLanguage('document'); setError(''); }}
             className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
               language === 'document'
                 ? 'bg-blue-600 text-white ring-2 ring-blue-400'
@@ -290,19 +289,19 @@ export default function App() {
           <p className="text-4xl mb-3">{language === 'document' ? '📄📝' : '📄'}</p>
           <p className="text-gray-600 font-medium">
             {language === 'document'
-              ? '点击选择或拖拽 PDF / Word 文件到此处'
-              : '点击选择或拖拽 PDF 文件到此处'}
+              ? '点击选择或拖拽 PDF / Word / Markdown 文件到此处'
+              : '点击选择或拖拽 PDF / Markdown 文件到此处'}
           </p>
           <p className="text-gray-400 text-sm mt-1">
             {language === 'document'
-              ? '支持 .pdf 和 .docx 文件 (Support .pdf and .docx files)'
-              : 'Click to select or drag & drop PDF files (支持多个文件 / Multiple files supported)'}
+              ? '支持 .pdf、.docx 和 .md 文件'
+              : '支持 .pdf 和 .md 文件，可同时选择多个'}
           </p>
         </div>
         <input
           ref={fileInputRef}
           type="file"
-          accept={language === 'document' ? '.pdf,.docx' : '.pdf'}
+          accept={language === 'document' ? '.pdf,.docx,.md' : '.pdf,.md'}
           multiple
           className="hidden"
           onChange={(e) => handleFiles(e.target.files ?? [])}
@@ -382,7 +381,7 @@ export default function App() {
               />
             </div>
             <p className="text-sm text-gray-500 mt-2">
-              {progress.current} / {progress.total} 页
+              {progress.current} / {progress.total} {language === 'document' ? '步' : '文件'}
             </p>
           </div>
         )}
@@ -399,12 +398,18 @@ export default function App() {
           PDF 单词表转换工具
           <span className="text-xs text-gray-400 ml-2 align-top">v{VERSION}</span>
         </h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap justify-end gap-3">
           <button
             onClick={downloadHtml}
             className="px-5 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 active:scale-[0.98] transition"
           >
             ⬇ 下载 HTML
+          </button>
+          <button
+            onClick={downloadMarkdown}
+            className="px-5 py-2.5 bg-amber-600 text-white font-semibold rounded-lg hover:bg-amber-700 active:scale-[0.98] transition"
+          >
+            ⬇ 下载 Markdown
           </button>
           <button
             onClick={downloadDocx}
@@ -440,10 +445,12 @@ export default function App() {
                 {language === 'document' ? (
                   <>
                     <th>日文假名 (Kana)</th>
+                    <th>中文默写</th>
+                    <th>日文默写</th>
                     <th>日汉字 (Kanji)</th>
-                    <th>中文意思 (Chinese)</th>
+                    <th>英文翻译 (English)</th>
                     <th>例句 (Example)</th>
-                    <th>默写/挖空 (Practice)</th>
+                    <th>中文意思 (Chinese)</th>
                   </>
                 ) : (
                   <>
@@ -477,15 +484,17 @@ export default function App() {
                   foreignContent = <span>{item.en}</span>;
                 }
                 
-                // Document mode: 5-column layout
+                // Document mode: seven columns, including separate Chinese/Japanese practice areas.
                 if ('type' in item && item.type === 'document') {
                   return (
                     <tr key={i}>
                       <td>{item.kana}</td>
-                      <td>{item.kanji || <span style={{color: '#999'}}>—</span>}</td>
-                      <td>{item.cn}</td>
-                      <td>{item.example || <span style={{color: '#999'}}>—</span>}</td>
                       <td className="blank">__________________</td>
+                      <td className="blank">__________________</td>
+                      <td>{item.kanji || <span style={{color: '#999'}}>—</span>}</td>
+                      <td>{item.en || ''}</td>
+                      <td>{item.example || <span style={{color: '#999'}}>—</span>}</td>
+                      <td>{item.cn}</td>
                     </tr>
                   );
                 }

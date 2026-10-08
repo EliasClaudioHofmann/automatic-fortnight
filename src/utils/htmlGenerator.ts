@@ -4,7 +4,7 @@ import { renderFuriganaHtml } from './furigana';
 /**
  * Generate the same HTML table as the original Python script.
  * Styles preserved from PdfToWordList.py lines 107-145; furigana added.
- * Document mode: 4-column table (kana | kanji | chinese | practice).
+ * Document mode: kana | Chinese practice | Japanese practice | kanji | English | example | Chinese.
  */
 export function generateHtml(wordPairs: WordPair[]): string {
   // Determine the mode from the first word pair
@@ -84,18 +84,20 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"]/g, (c) => map[c]);
 }
 
-/** Generate 5-column HTML table for document mode (kana | kanji | chinese | example | practice). */
+/** Generate a seven-column HTML table for document mode. */
 function generateDocumentHtml(wordPairs: WordPairDocument[]): string {
   const rows = wordPairs
     .map((item) => {
-      const kanjiDisplay = item.kanji || '<span style="color:#999">—</span>';
+      const kanjiDisplay = item.kanji ? escapeHtml(item.kanji) : '<span style="color:#999">—</span>';
       return `
                     <tr>
                         <td>${escapeHtml(item.kana)}</td>
-                        <td>${kanjiDisplay}</td>
-                        <td>${escapeHtml(item.cn)}</td>
-                        <td>${escapeHtml(item.example || '')}</td>
                         <td class="blank">__________________</td>
+                        <td class="blank">__________________</td>
+                        <td>${kanjiDisplay}</td>
+                        <td>${escapeHtml(item.en || '')}</td>
+                        <td>${escapeHtml(item.example || '')}</td>
+                        <td>${escapeHtml(item.cn)}</td>
                     </tr>`;
     })
     .join('');
@@ -118,10 +120,12 @@ function generateDocumentHtml(wordPairs: WordPairDocument[]): string {
         <thead>
             <tr>
                 <th>日文假名 (Kana)</th>
+                <th>中文默写</th>
+                <th>日文默写</th>
                 <th>日汉字 (Kanji)</th>
-                <th>中文意思 (Chinese)</th>
+                <th>英文翻译 (English)</th>
                 <th>例句 (Example)</th>
-                <th>默写/挖空 (Practice)</th>
+                <th>中文意思 (Chinese)</th>
             </tr>
         </thead>
         <tbody>
