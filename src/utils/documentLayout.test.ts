@@ -11,7 +11,7 @@ const item: WordPairDocument = {
   example: 'ご飯を食べる（ごはんをたべる）（吃饭）',
 };
 
-const headers = ['日文假名', '中文默写', '日文默写', '日汉字', '英文翻译', '例句', '中文意思'];
+const headers = ['日文假名', '日文默写', '日汉字', '默写', '英文翻译', '例句', '中文意思'];
 
 function assertOrdered(text: string, values: string[]) {
   let previous = -1;
@@ -30,6 +30,10 @@ test('document HTML exports two blank practice cells and seven ordered columns w
   assertOrdered(header, headers);
   assert.equal((row.match(/<td\b/g) ?? []).length, 7);
   assert.equal((row.match(/class="blank"/g) ?? []).length, 2);
+  const cells = [...row.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)];
+  assert.deepEqual(cells.map((cell, index) => cell[0].includes('class="blank"') ? index : -1).filter(index => index >= 0), [1, 3]);
+  assert.match(cells[2][1], /食べる/);
+  assert.match(cells[4][1], /to eat/);
   assertOrdered(row, ['たべる', '食べる', 'to eat', item.example, '吃']);
 });
 
@@ -56,6 +60,11 @@ test('document Word exports seven ordered columns and preserves the original exa
   const readCells = (row: string) => [...row.matchAll(/<w:tc[ >]([\s\S]*?)<\/w:tc>/g)]
     .map(match => [...match[1].matchAll(/<w:t(?: [^>]*)?>([\s\S]*?)<\/w:t>/g)]
       .map(text => text[1]).join(''));
+  const dataCells = readCells(rows[1]);
+  assert.equal(dataCells[1], '');
+  assert.equal(dataCells[2], '食べる');
+  assert.equal(dataCells[3], '');
+  assert.equal(dataCells[4], 'to eat');
   const [candidate] = parseDocxTableRows(rows.map(readCells));
   assert.equal(candidate.expression, '食べる');
   assert.equal(candidate.meaning, '吃');

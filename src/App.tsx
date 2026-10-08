@@ -446,9 +446,9 @@ export default function App() {
                 {language === 'document' ? (
                   <>
                     <th>日文假名 (Kana)</th>
-                    <th>中文默写</th>
                     <th>日文默写</th>
                     <th>日汉字 (Kanji)</th>
+                    <th>默写</th>
                     <th>英文翻译 (English)</th>
                     <th>例句 (Example)</th>
                     <th>中文意思 (Chinese)</th>
@@ -491,8 +491,8 @@ export default function App() {
                     <tr key={i}>
                       <td>{item.kana}</td>
                       <td className="blank">__________________</td>
-                      <td className="blank">__________________</td>
                       <td>{item.kanji || <span style={{color: '#999'}}>—</span>}</td>
+                      <td className="blank">__________________</td>
                       <td>{item.en || ''}</td>
                       <td>{item.example || <span style={{color: '#999'}}>—</span>}</td>
                       <td>{item.cn}</td>

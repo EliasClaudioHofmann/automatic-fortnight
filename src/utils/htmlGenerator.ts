@@ -4,7 +4,7 @@ import { renderFuriganaHtml } from './furigana';
 /**
  * Generate the same HTML table as the original Python script.
  * Styles preserved from PdfToWordList.py lines 107-145; furigana added.
- * Document mode: kana | Chinese practice | Japanese practice | kanji | English | example | Chinese.
+ * Document mode: kana | Japanese practice | kanji | practice | English | example | Chinese.
  */
 export function generateHtml(wordPairs: WordPair[]): string {
   // Determine the mode from the first word pair
@@ -93,8 +93,8 @@ function generateDocumentHtml(wordPairs: WordPairDocument[]): string {
                     <tr>
                         <td>${escapeHtml(item.kana)}</td>
                         <td class="blank">__________________</td>
-                        <td class="blank">__________________</td>
                         <td>${kanjiDisplay}</td>
+                        <td class="blank">__________________</td>
                         <td>${escapeHtml(item.en || '')}</td>
                         <td>${escapeHtml(item.example || '')}</td>
                         <td>${escapeHtml(item.cn)}</td>
@@ -120,9 +120,9 @@ function generateDocumentHtml(wordPairs: WordPairDocument[]): string {
         <thead>
             <tr>
                 <th>日文假名 (Kana)</th>
-                <th>中文默写</th>
                 <th>日文默写</th>
                 <th>日汉字 (Kanji)</th>
+                <th>默写</th>
                 <th>英文翻译 (English)</th>
                 <th>例句 (Example)</th>
                 <th>中文意思 (Chinese)</th>

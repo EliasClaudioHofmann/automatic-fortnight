@@ -26,8 +26,8 @@ test('Document mode exports seven ordered columns with the original example inta
   const text = generateMarkdown([document], 'document');
   const lines = text.trimEnd().split('\n');
   assert.equal(lines.length, 3);
-  assert.equal(lines[0], '| 日文假名 | 中文默写 | 日文默写 | 日汉字 | 英文翻译 | 例句 | 中文意思 |');
-  assert.equal(lines[2], '| たべる |  |  | 食べる | to eat | ご飯を食べる（ごはんをたべる）（吃饭） | 吃 |');
+  assert.equal(lines[0], '| 日文假名 | 日文默写 | 日汉字 | 默写 | 英文翻译 | 例句 | 中文意思 |');
+  assert.equal(lines[2], '| たべる |  | 食べる |  | to eat | ご飯を食べる（ごはんをたべる）（吃饭） | 吃 |');
 });
 
 test('Markdown export escapes pipes, backslashes, markup, and embedded newlines without splitting rows', () => {
