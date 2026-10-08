@@ -52,4 +52,15 @@ test('document completion visibly flags fallback output for checking', () => {
   assert.match(formatDocumentCompletion([], true), /备用模型.*核对/);
   assert.match(formatDocumentCompletion(['坏文件.md'], true), /坏文件\.md/);
   assert.equal(formatDocumentCompletion([], false), '处理完成！(Done!)');
+  assert.match(formatDocumentCompletion([], false, 'gemini-3.5-flash-lite'), /Flash Lite.*核对/);
+});
+
+test('Markdown text extraction sends the selected model to the request generator', async () => {
+  const selected: string[] = [];
+  const pairs = await extractWordsFromText('test-key', 'apple: 苹果', 'english', async (_text, _prompt, model) => {
+    selected.push(model);
+    return '[{"en":"apple","cn":"苹果"}]';
+  }, 'gemini-3.5-flash-lite');
+  assert.deepEqual(selected, ['gemini-3.5-flash-lite']);
+  assert.equal(pairs.length, 1);
 });

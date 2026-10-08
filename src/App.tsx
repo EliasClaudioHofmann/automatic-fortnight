@@ -3,6 +3,8 @@ import { pdfToImages } from './services/pdfService';
 import { extractTextFromFile } from './services/documentService';
 import { extractWords, extractWordsFromDocument, extractWordsFromText, type WordPair } from './services/geminiService';
 import { isSupportedFile, formatDocumentCompletion } from './services/fileImport';
+import { DEFAULT_GEMINI_MODEL, loadModelSelection, saveModelSelection, type GeminiModelId } from './services/modelSelection';
+import ModelPicker from './ModelPicker';
 import { generateHtml } from './utils/htmlGenerator';
 import { generateDocx } from './utils/docxGenerator';
 import { generateMarkdown } from './utils/markdownGenerator';
@@ -18,6 +20,11 @@ export default function App() {
   const [ankiMode, setAnkiMode] = useState(false);
   const [step, setStep] = useState<Step>('input');
   const [apiKey, setApiKey] = useState('');
+  const [modelId, setModelId] = useState<GeminiModelId>(() => {
+    if (typeof window === 'undefined') return DEFAULT_GEMINI_MODEL;
+    try { return loadModelSelection(window.localStorage); }
+    catch { return DEFAULT_GEMINI_MODEL; }
+  });
   const [files, setFiles] = useState<File[]>([]);
   const [language, setLanguage] = useState<Language>('japanese');
   const [status, setStatus] = useState('');
@@ -26,6 +33,14 @@ export default function App() {
   const [error, setError] = useState('');
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const selectModel = (selected: GeminiModelId) => {
+    setModelId(selected);
+    if (typeof window !== 'undefined') {
+      try { saveModelSelection(window.localStorage, selected); }
+      catch { /* Storage is optional; keep the in-memory choice. */ }
+    }
+  };
 
   // ── File handling ──
   const handleFiles = useCallback((newFiles: FileList | File[]) => {
@@ -100,11 +115,11 @@ export default function App() {
         setProgress({ current: 0, total: 1 });
 
         let usedFallback = false;
-        const pairs = await extractWordsFromDocument(apiKey, fullText, () => { usedFallback = true; });
+        const pairs = await extractWordsFromDocument(apiKey, fullText, () => { usedFallback = true; }, modelId);
 
         setWordPairs(pairs);
         setProgress({ current: 1, total: 1 });
-        setStatus(formatDocumentCompletion(failures, usedFallback));
+        setStatus(formatDocumentCompletion(failures, usedFallback, modelId));
         setStep('result');
         return;
       }
@@ -119,13 +134,13 @@ export default function App() {
           let pairs: WordPair[];
           if (file.name.toLowerCase().endsWith('.md')) {
             setStatus(`正在读取 Markdown：${file.name} (${i + 1}/${files.length})`);
-            pairs = await extractWordsFromText(apiKey, await file.text(), language);
+            pairs = await extractWordsFromText(apiKey, await file.text(), language, undefined, modelId);
           } else {
             setStatus(`正在读取 PDF：${file.name} (${i + 1}/${files.length})`);
             const images = await pdfToImages(file);
             pairs = await extractWords(apiKey, images, language, (page, total) => {
               setStatus(`正在处理 ${file.name} 第 ${page}/${total} 页...`);
-            });
+            }, modelId);
           }
           if (pairs.length) allPairs.push(...pairs);
           else failures.push(`${file.name}（未识别到词汇）`);
@@ -136,7 +151,7 @@ export default function App() {
       }
       if (!allPairs.length) throw new Error(`未能从文件中提取词汇。${failures.join('；')}`);
       setWordPairs(allPairs);
-      setStatus(failures.length ? `处理完成；以下文件未导入：${failures.join('；')}` : '处理完成！(Done!)');
+      setStatus(formatDocumentCompletion(failures, false, modelId));
       setStep('result');
     } catch (err: any) {
       setError(err?.message ?? String(err));
@@ -237,6 +252,8 @@ export default function App() {
           placeholder="输入你的 Gemini API Key..."
           className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition mb-6"
         />
+
+        <ModelPicker value={modelId} onChange={selectModel} />
 
         {/* Language Selection */}
         <label className="block text-sm font-medium text-gray-700 mb-2">

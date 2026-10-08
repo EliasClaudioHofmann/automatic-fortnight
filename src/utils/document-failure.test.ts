@@ -59,3 +59,40 @@ test('document Markdown recovers from a 503 using the verified fallback and repo
     globalThis.fetch = originalFetch;
   }
 });
+
+test('document import calls the chosen model instead of the former fixed default', async () => {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = async (input) => {
+    urls.push(String(input));
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '[{"kana":"くずす","kanji":"崩す","cn":"破坏","en":"to break","example":"形を崩す（かたちをくずす）（破坏形状）"}]' }], role: 'model' }, finishReason: 'STOP' }] }), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    const pairs = await extractWordsFromDocument('test-key', rubyNote, undefined, 'gemini-3.5-flash');
+    assert.equal(pairs.length, 1);
+    assert.equal(urls.length, 1);
+    assert.match(urls[0], /models\/gemini-3\.5-flash:generateContent/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('selecting Flash Lite does not retry the same model on HTTP 503', async () => {
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  globalThis.fetch = async (input) => {
+    urls.push(String(input));
+    return new Response(JSON.stringify({ error: { code: 503, status: 'UNAVAILABLE', message: 'lite busy' } }), {
+      status: 503, headers: { 'content-type': 'application/json' },
+    });
+  };
+  try {
+    await assert.rejects(extractWordsFromDocument('test-key', rubyNote, undefined, 'gemini-3.5-flash-lite'), /lite busy/);
+    assert.equal(urls.length, 1);
+    assert.match(urls[0], /models\/gemini-3\.5-flash-lite:generateContent/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

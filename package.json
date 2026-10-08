@@ -4,7 +4,7 @@
   "version": "1.3.3",
   "type": "module",
   "scripts": {
-    "test": "node --test src/anki/*.test.ts && node -e \"require('esbuild').buildSync({entryPoints:['src/utils/documentLayout.test.ts','src/utils/md-import.test.ts','src/utils/document-failure.test.ts'],bundle:true,platform:'node',format:'esm',packages:'external',outdir:'src/utils',outExtension:{'.js':'.bundle.mjs'}})\" && node --test src/utils/*.test.bundle.mjs && node --test src/utils/markdownGenerator.test.ts && node -e \"['documentLayout','md-import','document-failure'].forEach(name=>require('fs').unlinkSync('src/utils/'+name+'.test.bundle.mjs'))\"",
+    "test": "node --test src/anki/*.test.ts && node -e \"require('esbuild').buildSync({entryPoints:['src/utils/documentLayout.test.ts','src/utils/md-import.test.ts','src/utils/document-failure.test.ts','src/utils/modelDispatch.test.ts','src/utils/modelPicker.test.ts'],bundle:true,platform:'node',format:'esm',packages:'external',outdir:'src/utils',outExtension:{'.js':'.bundle.mjs'}})\" && node --test src/utils/*.test.bundle.mjs src/utils/markdownGenerator.test.ts src/utils/modelSelection.test.ts src/utils/appModelWiring.test.ts && node -e \"['documentLayout','md-import','document-failure','modelDispatch','modelPicker'].forEach(name=>require('fs').unlinkSync('src/utils/'+name+'.test.bundle.mjs'))\"",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview"

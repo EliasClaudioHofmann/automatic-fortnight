@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { DEFAULT_GEMINI_MODEL, type GeminiModelId } from './modelSelection';
 
 type Language = 'japanese' | 'english' | 'document';
 
@@ -264,19 +265,20 @@ export async function extractWordsFromText(
   apiKey: string,
   text: string,
   language: 'japanese' | 'english',
-  generateText?: (source: string, prompt: string) => Promise<string>,
+  generateText?: (source: string, prompt: string, model: GeminiModelId) => Promise<string>,
+  modelId: GeminiModelId = DEFAULT_GEMINI_MODEL,
 ): Promise<Array<WordPairJapanese | WordPairEnglish>> {
   if (!text.trim()) throw new Error('Markdown 文件内容为空，无法提取词汇。');
   const prompt = `${PROMPTS[language]}\nThe input may be Markdown: headings, lists, or tables. Extract vocabulary entries only; do not treat headings or explanations as words. Do not invent entries not present in the input.`;
-  const generator = generateText ?? (async (source: string, instructions: string) => {
-    const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({ model: 'gemini-3.8-flash' });
+  const generator = generateText ?? (async (source: string, instructions: string, selectedModel: GeminiModelId) => {
+    const model = new GoogleGenerativeAI(apiKey).getGenerativeModel({ model: selectedModel });
     const result = await model.generateContent([{ text: source }, instructions]);
     return result.response.text();
   });
   const output: Array<WordPairJapanese | WordPairEnglish> = [];
   // Keep the raw Markdown structure intact inside each request, just as document mode does.
   for (let i = 0; i < text.length; i += 8000) {
-    const response = await generator(text.slice(i, i + 8000), prompt);
+    const response = await generator(text.slice(i, i + 8000), prompt, modelId);
     const json = response.match(/\[[\s\S]*\]/)?.[0] ?? response.replace(/```(?:json)?\s*/g, '').trim();
     const parsed: unknown = JSON.parse(json);
     if (!Array.isArray(parsed)) throw new Error('Gemini 未返回词汇数组。');
@@ -306,10 +308,11 @@ export async function extractWords(
   apiKey: string,
   images: string[],
   language: Language,
-  onProgress: (current: number, total: number) => void
+  onProgress: (current: number, total: number) => void,
+  modelId: GeminiModelId = DEFAULT_GEMINI_MODEL,
 ): Promise<WordPair[]> {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
+  const model = genAI.getGenerativeModel({ model: modelId });
 
   const allPairs: WordPair[] = [];
   const prompt = PROMPTS[language];
@@ -377,9 +380,8 @@ export async function extractWords(
         }
       }
     } catch (error) {
-      // Log error but skip page — same behavior as original
-      console.warn(`Error processing page ${i + 1}:`, error);
-      continue;
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`第 ${i + 1}/${images.length} 页处理失败（${modelId}）：${reason}`);
     }
   }
 
@@ -395,9 +397,10 @@ export async function extractWordsFromDocument(
   apiKey: string,
   documentText: string,
   onFallback?: () => void,
+  modelId: GeminiModelId = DEFAULT_GEMINI_MODEL,
 ): Promise<WordPairDocument[]> {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-3.8-flash' });
+  const model = genAI.getGenerativeModel({ model: modelId });
   const prompt = PROMPTS.document;
 
   // Split long documents into chunks to stay within reasonable context limits.
@@ -425,7 +428,8 @@ export async function extractWordsFromDocument(
       try {
         result = await model.generateContent(parts);
       } catch (primaryError) {
-        if (!(primaryError && typeof primaryError === 'object' && 'status' in primaryError && primaryError.status === 503)) {
+        if (modelId === 'gemini-3.5-flash-lite' ||
+            !(primaryError && typeof primaryError === 'object' && 'status' in primaryError && primaryError.status === 503)) {
           throw primaryError;
         }
         const fallback = genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite' });
