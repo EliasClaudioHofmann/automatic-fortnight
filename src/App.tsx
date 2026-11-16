@@ -241,6 +241,10 @@ export default function App() {
           📊 N2 真题语法候选频次（审计版）
         </a>
 
+        <a href="/japanese-grammar-foundations-3days.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100">
+          📖 日语语法基础重建（三天集中学习）
+        </a>
+
         {/* API Key */}
         <label className="block text-sm font-medium text-gray-700 mb-1">
           Gemini API Key
