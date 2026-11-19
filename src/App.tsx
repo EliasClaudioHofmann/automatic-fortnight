@@ -11,6 +11,7 @@ import { generateMarkdown } from './utils/markdownGenerator';
 import { segmentFurigana } from './utils/furigana';
 import pkg from '../package.json';
 import AnkiPage from './anki/AnkiPage';
+import './study-home.css';
 
 const VERSION = pkg.version;
 type Step = 'input' | 'processing' | 'result';
@@ -221,163 +222,147 @@ export default function App() {
 
   if (step === 'input') {
     return (
-      <div className="max-w-lg mx-auto mt-16 px-4">
-        <button onClick={() => setAnkiMode(true)} className="mb-5 w-full rounded-lg bg-indigo-600 text-white font-semibold py-3">上传文档后自动生成 Anki 牌组（三种卡片）</button>
-        {/* Header */}
-        <h1 className="text-2xl font-bold text-center text-gray-800 mb-8">
-          PDF 单词表转换工具
-          <span className="text-xs text-gray-400 ml-2 align-top">v{VERSION}</span>
-        </h1>
-
-        <a href="/n2-japanese-grammar-notes.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100">
-          📘 N2 语法复习笔记
-        </a>
-
-        <a href="/n2-grammar-map.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100">
-          🗺️ N2 语法整书记忆地图
-        </a>
-
-        <a href="/n2-grammar-frequency.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 font-semibold text-amber-800 transition hover:bg-amber-100">
-          📊 N2 真题语法候选频次（审计版）
-        </a>
-
-        <a href="/japanese-grammar-foundations-3days.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100">
-          📖 日语语法基础重建（三天集中学习）
-        </a>
-
-        <a href="/n2-vocabulary-practice.html" target="_blank" rel="noreferrer" className="mb-6 flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 font-semibold text-blue-700 transition hover:bg-blue-100">
-          N2 真题词汇遮盖练习（380 词）
-        </a>
-
-        {/* API Key */}
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Gemini API Key
-        </label>
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="输入你的 Gemini API Key..."
-          className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition mb-6"
-        />
-
-        <ModelPicker value={modelId} onChange={selectModel} />
-
-        {/* Language Selection */}
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          选择语言 (Choose Language)
-        </label>
-        <div className="flex gap-3 mb-6">
-          <button
-            onClick={() => { setLanguage('japanese'); setFiles(prev => prev.filter(file => isSupportedFile('japanese', file.name))); setError(''); }}
-            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
-              language === 'japanese'
-                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            日语 (Japanese)
-          </button>
-          <button
-            onClick={() => { setLanguage('english'); setFiles(prev => prev.filter(file => isSupportedFile('english', file.name))); setError(''); }}
-            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
-              language === 'english'
-                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            英语 (English)
-          </button>
-          <button
-            onClick={() => { setLanguage('document'); setError(''); }}
-            className={`flex-1 py-2.5 rounded-lg font-semibold transition ${
-              language === 'document'
-                ? 'bg-blue-600 text-white ring-2 ring-blue-400'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            文档上传 (Document)
-          </button>
-        </div>
-
-        {/* File Drop Zone */}
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          onDrop={onDrop}
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${
-            dragOver
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-gray-300 bg-white hover:border-gray-400'
-          }`}
-        >
-          <p className="text-4xl mb-3">{language === 'document' ? '📄📝' : '📄'}</p>
-          <p className="text-gray-600 font-medium">
-            {language === 'document'
-              ? '点击选择或拖拽 PDF / Word / Markdown 文件到此处'
-              : '点击选择或拖拽 PDF / Markdown 文件到此处'}
-          </p>
-          <p className="text-gray-400 text-sm mt-1">
-            {language === 'document'
-              ? '支持 .pdf、.docx 和 .md 文件'
-              : '支持 .pdf 和 .md 文件，可同时选择多个'}
-          </p>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={language === 'document' ? '.pdf,.docx,.md' : '.pdf,.md'}
-          multiple
-          className="hidden"
-          onChange={(e) => handleFiles(e.target.files ?? [])}
-        />
-
-        {/* File List */}
-        {files.length > 0 && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <p className="text-sm font-medium text-gray-700 mb-2">
-              已选择 {files.length} 个文件 ({files.length} file{files.length > 1 ? 's' : ''} selected)
-            </p>
-            <ul className="space-y-2">
-              {files.map((f, i) => (
-                <li
-                  key={i}
-                  className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 text-sm"
-                >
-                  <span className="text-gray-700 truncate">📄 {f.name}</span>
-                  <button
-                    onClick={() => removeFile(i)}
-                    className="ml-2 px-2 py-1 text-red-600 hover:bg-red-50 rounded transition text-xs"
-                  >
-                    ✕ 删除
-                  </button>
-                </li>
+      <main className="study-home">
+        <header className="study-masthead"><span><b lang="ja">日</b> 日本語ノート</span><span>JLPT N2</span></header>
+        <div className="study-layout">
+          <section className="study-library" aria-labelledby="study-title">
+            <h1 id="study-title">日语学习手帖</h1>
+            <p className="study-intro">逐课复习语法，按意思查易混表达，也能用真题词汇练默写。</p>
+            <nav aria-label="学习资料" className="study-nav">
+              {[
+                ['/n2-japanese-grammar-notes.html', '逐课语法笔记', '按课复习接续、语感和例句'],
+                ['/n2-grammar-map.html', '语法整书记忆地图', '按语义归类，对照相近表达'],
+                ['/n2-vocabulary-practice.html', '真题词汇遮盖练习', '分列遮盖，练读音、释义和例句'],
+                ['/japanese-grammar-foundations-3days.html', '三天语法基础重建', '复习助词、活用和句子结构'],
+                ['/n2-grammar-frequency.html', '真题语法候选频次', '机器抽取记录，未经逐题核验'],
+              ].map(([href, title, description], index) => (
+                <a href={href} key={href}>
+                  <span className="study-index" aria-hidden="true">0{index + 1}</span>
+                  <span><strong>{title}</strong><small>{description}</small></span>
+                  <span className="study-arrow" aria-hidden="true">→</span>
+                </a>
               ))}
-            </ul>
-          </div>
-        )}
+            </nav>
+          </section>
+          <section className="study-workbench" aria-labelledby="converter-title">
+            <header className="study-workbench-title"><span>学习工具</span><span>v{VERSION}</span></header>
+            <h2 id="converter-title">单词表转换</h2>
+            <p className="study-tool-note">导入资料，生成可下载的词汇表。</p>
+            {/* API Key */}
+            <label htmlFor="study-api-key" className="block text-sm font-medium text-gray-700 mb-1">
+              Gemini API Key
+            </label>
+            <input
+              id="study-api-key"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="输入你的 Gemini API Key..."
+              className="w-full border border-gray-300 study-field"
+            />
 
-        {/* Error */}
-        {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-            {error}
-          </div>
-        )}
+            <ModelPicker value={modelId} onChange={selectModel} />
 
-        {/* Convert Button */}
-        <button
-          onClick={startConversion}
-          disabled={!apiKey.trim() || files.length === 0}
-          className={`w-full mt-6 py-3 rounded-lg font-bold text-white text-base transition ${
-            apiKey.trim() && files.length > 0
-              ? 'bg-green-600 hover:bg-green-700 active:scale-[0.98] cursor-pointer'
-              : 'bg-gray-300 cursor-not-allowed'
-          }`}
-        >
-          开始转换 (Start Conversion)
-        </button>
-      </div>
+            {/* Language Selection */}
+            <div id="study-mode-label" className="block text-sm font-medium text-gray-700 mb-2">导入模式</div>
+            <div className="study-modes" role="group" aria-labelledby="study-mode-label">
+              <button
+                onClick={() => { setLanguage('japanese'); setFiles(prev => prev.filter(file => isSupportedFile('japanese', file.name))); setError(''); }}
+                aria-pressed={language === 'japanese'}
+              >
+                日语
+              </button>
+              <button
+                onClick={() => { setLanguage('english'); setFiles(prev => prev.filter(file => isSupportedFile('english', file.name))); setError(''); }}
+                aria-pressed={language === 'english'}
+              >
+                英语
+              </button>
+              <button
+                onClick={() => { setLanguage('document'); setError(''); }}
+                aria-pressed={language === 'document'}
+              >
+                文档
+              </button>
+            </div>
+
+            {/* File Drop Zone */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              className="study-drop"
+              data-dragging={dragOver}
+            >
+              <span className="study-upload-icon" aria-hidden="true">↑</span>
+              <span className="block text-gray-600 font-medium">
+                {language === 'document'
+                  ? '点击选择或拖拽 PDF / Word / Markdown 文件到此处'
+                  : '点击选择或拖拽 PDF / Markdown 文件到此处'}
+              </span>
+              <span className="block study-tool-note">
+                {language === 'document'
+                  ? '支持 .pdf、.docx 和 .md 文件'
+                  : '支持 .pdf 和 .md 文件，可同时选择多个'}
+              </span>
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={language === 'document' ? '.pdf,.docx,.md' : '.pdf,.md'}
+              multiple
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files ?? [])}
+            />
+
+            {/* File List */}
+            {files.length > 0 && (
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  已选择 {files.length} 个文件 ({files.length} file{files.length > 1 ? 's' : ''} selected)
+                </p>
+                <ul className="space-y-2">
+                  {files.map((f, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 text-sm"
+                    >
+                      <span className="text-gray-700 truncate">📄 {f.name}</span>
+                      <button
+                        onClick={() => removeFile(i)}
+                        className="ml-2 px-2 py-1 text-red-600 hover:bg-red-50 rounded transition text-xs"
+                      >
+                        ✕ 删除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Error */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                {error}
+              </div>
+            )}
+
+            {/* Convert Button */}
+            <button
+              onClick={startConversion}
+              disabled={!apiKey.trim() || files.length === 0}
+              className="study-convert"
+            >
+              开始转换
+            </button>
+            <button type="button" onClick={() => setAnkiMode(true)} className="study-anki">
+              <span>生成 Anki 牌组 <small>三种卡片</small></span><span aria-hidden="true">→</span>
+            </button>
+          </section>
+        </div>
+      </main>
     );
   }
 
@@ -386,7 +371,7 @@ export default function App() {
     const pct = progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0;
 
     return (
-      <div className="max-w-lg mx-auto mt-16 px-4 text-center">
+      <div className="study-processing max-w-lg mx-auto mt-16 px-4 text-center">
         <h1 className="text-2xl font-bold text-gray-800 mb-8">
           PDF 单词表转换工具
           <span className="text-xs text-gray-400 ml-2 align-top">v{VERSION}</span>
@@ -417,14 +402,14 @@ export default function App() {
 
   // ── RESULT STEP ──
   return (
-    <div className="max-w-5xl mx-auto mt-8 px-4 pb-12">
+    <div className="study-result max-w-5xl mx-auto mt-8 px-4 pb-12">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="study-result-actions flex flex-wrap items-center justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-800">
           PDF 单词表转换工具
           <span className="text-xs text-gray-400 ml-2 align-top">v{VERSION}</span>
         </h1>
-        <div className="flex flex-wrap justify-end gap-3">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={downloadHtml}
             className="px-5 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 active:scale-[0.98] transition"
@@ -480,7 +465,7 @@ export default function App() {
                   </>
                 ) : (
                   <>
-                    <th>{language === 'japanese' ? '日语 (Japanese)' : '英语 (English)'}</th>
+                    <th>{language === 'japanese' ? '日语' : '英语'}</th>
                     <th>中文 (Chinese)</th>
                     <th>默写/挖空 (Practice)</th>
                   </>
